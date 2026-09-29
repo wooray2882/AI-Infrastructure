@@ -37,9 +37,9 @@ module "github_oidc_role" {
   aws_account_id    = var.aws_account_id
   state_bucket_name = var.state_bucket_name
 
-  # ZeroDown already created the GitHub OIDC provider in this account.
-  # Set to true only if you get "provider already exists" errors.
-  create_oidc_provider = false
+  # Create the GitHub OIDC provider — it doesn't exist in this account yet.
+  # If you ever get "provider already exists" on a re-run, set this to false.
+  create_oidc_provider = true
 
   tags = {
     Project     = "corelink"
