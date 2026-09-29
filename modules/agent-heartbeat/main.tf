@@ -216,7 +216,7 @@ resource "aws_iam_role" "agent" {
     AgentName  = each.value.name
     Department = each.value.department
     AgentRole  = each.value.role
-    AgentTools = join(",", each.value.tools)
+    AgentTools = join(" ", each.value.tools)
   })
 }
 
