@@ -41,19 +41,20 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
 
-      - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v3
-        with:
-          terraform_version: "1.9.8"
-          terraform_wrapper: false
-
-      - name: Get Terraform outputs
+      - name: Get deployment values from AWS
         id: tf
-        working-directory: environments/dev
         run: |
-          terraform init -reconfigure
-          echo "ws_url=$(terraform output -raw websocket_url)" >> $GITHUB_OUTPUT
-          echo "bucket=$(terraform output -raw dashboard_bucket)" >> $GITHUB_OUTPUT
+          # Get S3 bucket — named corelink-dashboard-<account-id>
+          ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+          BUCKET="corelink-dashboard-${ACCOUNT_ID}"
+          echo "bucket=${BUCKET}" >> $GITHUB_OUTPUT
+
+          # Get WebSocket URL from API Gateway
+          API_ID=$(aws apigatewayv2 get-apis \
+            --query "Items[?Name=='corelink-ws'].ApiId" \
+            --output text)
+          WS_URL="wss://${API_ID}.execute-api.${{ env.AWS_REGION }}.amazonaws.com/prod"
+          echo "ws_url=${WS_URL}" >> $GITHUB_OUTPUT
 
       - name: Setup Node
         uses: actions/setup-node@v4
