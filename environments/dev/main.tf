@@ -91,3 +91,33 @@ module "agent_heartbeat" {
     ManagedBy   = "terraform"
   }
 }
+
+module "agent_dashboard" {
+  source = "../../modules/agent-dashboard"
+
+  name_prefix                 = "corelink"
+  aws_region                  = var.aws_region
+  heartbeat_stream_arn        = module.agent_heartbeat.current_table_stream_arn
+  heartbeat_current_table_arn = module.agent_heartbeat.current_table_arn
+
+  tags = {
+    Project     = "corelink"
+    Environment = "dev"
+    ManagedBy   = "terraform"
+  }
+}
+
+output "websocket_url" {
+  description = "Set this as VITE_WS_URL when building the dashboard."
+  value       = module.agent_dashboard.websocket_url
+}
+
+output "dashboard_url" {
+  description = "CloudFront URL for the live dashboard."
+  value       = module.agent_dashboard.cloudfront_url
+}
+
+output "dashboard_bucket" {
+  description = "Upload the built React app here: aws s3 sync app/dashboard/dist s3://<bucket>"
+  value       = module.agent_dashboard.dashboard_bucket
+}
