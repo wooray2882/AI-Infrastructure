@@ -8,6 +8,124 @@ terraform {
 }
 
 # ---------------------------------------------------------------------------
+# Tool → IAM permission mapping
+# Each key is a tool name an agent can declare in its tools list.
+# The orchestrator role gets lambda_invoke so it can call specialist agents.
+# ---------------------------------------------------------------------------
+locals {
+  tool_permissions = {
+    heartbeat = {
+      actions = [
+        "dynamodb:PutItem",
+        "dynamodb:UpdateItem",
+      ]
+      resources = [
+        aws_dynamodb_table.heartbeat_current.arn,
+        aws_dynamodb_table.heartbeat_history.arn,
+      ]
+    }
+
+    dynamodb = {
+      actions = [
+        "dynamodb:PutItem",
+        "dynamodb:UpdateItem",
+        "dynamodb:GetItem",
+        "dynamodb:Query",
+        "dynamodb:Scan",
+        "dynamodb:BatchWriteItem",
+        "dynamodb:BatchGetItem",
+      ]
+      resources = ["arn:aws:dynamodb:*:*:table/*"]
+    }
+
+    rds = {
+      actions = [
+        "rds-data:ExecuteStatement",
+        "rds-data:BatchExecuteStatement",
+        "rds-data:BeginTransaction",
+        "rds-data:CommitTransaction",
+        "rds-data:RollbackTransaction",
+      ]
+      resources = ["arn:aws:rds:*:*:cluster:*"]
+    }
+
+    s3 = {
+      actions = [
+        "s3:GetObject",
+        "s3:PutObject",
+        "s3:DeleteObject",
+        "s3:ListBucket",
+      ]
+      resources = [
+        "arn:aws:s3:::*",
+        "arn:aws:s3:::*/*",
+      ]
+    }
+
+    ses = {
+      actions = [
+        "ses:SendEmail",
+        "ses:SendRawEmail",
+        "ses:SendTemplatedEmail",
+      ]
+      resources = ["*"]
+    }
+
+    lambda_invoke = {
+      actions   = ["lambda:InvokeFunction"]
+      resources = ["arn:aws:lambda:*:*:function:corelink-agent-*"]
+    }
+
+    bedrock = {
+      actions = [
+        "bedrock:InvokeModel",
+        "bedrock:InvokeModelWithResponseStream",
+      ]
+      resources = ["arn:aws:bedrock:*::foundation-model/*"]
+    }
+
+    secrets = {
+      actions = [
+        "secretsmanager:GetSecretValue",
+        "secretsmanager:DescribeSecret",
+      ]
+      resources = ["arn:aws:secretsmanager:*:*:secret:corelink/*"]
+    }
+
+    registry_read = {
+      actions = [
+        "dynamodb:GetItem",
+        "dynamodb:Query",
+        "dynamodb:Scan",
+      ]
+      resources = [aws_dynamodb_table.heartbeat_current.arn]
+    }
+  }
+
+  agents = { for a in var.agent_definitions : a.id => a }
+
+  # Orchestrators automatically get registry_read so they can discover agents
+  agent_effective_tools = {
+    for id, a in local.agents :
+    id => toset(concat(
+      a.tools,
+      a.role == "orchestrator" ? ["registry_read"] : []
+    ))
+  }
+
+  # Flatten: one entry per (agent, tool) pair — used to build per-tool policies
+  agent_tool_pairs = flatten([
+    for id, a in local.agents : [
+      for tool in local.agent_effective_tools[id] : {
+        agent_id = id
+        tool     = tool
+        key      = "${id}__${tool}"
+      }
+    ]
+  ])
+}
+
+# ---------------------------------------------------------------------------
 # Current-state table  (one row per agent, overwritten on each heartbeat)
 # DynamoDB Streams enabled here — Phase 2 dashboard and Phase 3 watcher use it
 # ---------------------------------------------------------------------------
@@ -21,12 +139,9 @@ resource "aws_dynamodb_table" "heartbeat_current" {
     type = "S"
   }
 
-  # Phase 2/3: NEW_AND_OLD_IMAGES lets the dashboard see current values and
-  # lets the watcher detect what changed (e.g. token_count delta, status flip)
   stream_enabled   = true
   stream_view_type = "NEW_AND_OLD_IMAGES"
 
-  # TTL — off by default; set ttl_attribute_enabled = true in tfvars to use
   dynamic "ttl" {
     for_each = var.ttl_attribute_enabled ? [1] : []
     content {
@@ -43,14 +158,11 @@ resource "aws_dynamodb_table" "heartbeat_current" {
     enabled = true
   }
 
-  tags = merge(var.tags, {
-    TablePurpose = "heartbeat-current-state"
-  })
+  tags = merge(var.tags, { TablePurpose = "heartbeat-current-state" })
 }
 
 # ---------------------------------------------------------------------------
 # History table  (append-only; every heartbeat is a new record)
-# No streams needed here — audit trail only
 # ---------------------------------------------------------------------------
 resource "aws_dynamodb_table" "heartbeat_history" {
   name         = var.history_table_name
@@ -68,7 +180,6 @@ resource "aws_dynamodb_table" "heartbeat_history" {
     type = "S"
   }
 
-  # TTL on history is usually desirable to keep table size bounded
   dynamic "ttl" {
     for_each = var.history_ttl_attribute_enabled ? [1] : []
     content {
@@ -85,97 +196,32 @@ resource "aws_dynamodb_table" "heartbeat_history" {
     enabled = true
   }
 
-  tags = merge(var.tags, {
-    TablePurpose = "heartbeat-history"
-  })
+  tags = merge(var.tags, { TablePurpose = "heartbeat-history" })
 }
 
 # ---------------------------------------------------------------------------
-# IAM — one reusable policy template; each agent gets its own role
-# The condition locks each agent to writing only its own record
-# ---------------------------------------------------------------------------
-data "aws_iam_policy_document" "heartbeat_write" {
-  statement {
-    sid    = "WriteCurrentStateOwnRecord"
-    effect = "Allow"
-    actions = [
-      "dynamodb:PutItem",
-      "dynamodb:UpdateItem",
-    ]
-    resources = [aws_dynamodb_table.heartbeat_current.arn]
-
-    # Enforce that agent_id in the item == the role's AgentId tag
-    condition {
-      test     = "ForAllValues:StringEquals"
-      variable = "dynamodb:LeadingKeys"
-      values   = ["$${aws:PrincipalTag/AgentId}"]
-    }
-  }
-
-  statement {
-    sid    = "WriteHistoryOwnRecord"
-    effect = "Allow"
-    actions = [
-      "dynamodb:PutItem",
-    ]
-    resources = [aws_dynamodb_table.heartbeat_history.arn]
-
-    condition {
-      test     = "ForAllValues:StringEquals"
-      variable = "dynamodb:LeadingKeys"
-      values   = ["$${aws:PrincipalTag/AgentId}"]
-    }
-  }
-
-  # Explicitly deny reads and all other table operations
-  statement {
-    sid    = "DenyReadAndAdmin"
-    effect = "Deny"
-    actions = [
-      "dynamodb:GetItem",
-      "dynamodb:Query",
-      "dynamodb:Scan",
-      "dynamodb:BatchGetItem",
-      "dynamodb:DeleteItem",
-      "dynamodb:CreateTable",
-      "dynamodb:DeleteTable",
-      "dynamodb:UpdateTable",
-    ]
-    resources = [
-      aws_dynamodb_table.heartbeat_current.arn,
-      aws_dynamodb_table.heartbeat_history.arn,
-    ]
-  }
-}
-
-resource "aws_iam_policy" "heartbeat_write" {
-  name        = "${var.name_prefix}-heartbeat-write"
-  description = "Allows an agent to write its own heartbeat records; scoped by AgentId principal tag"
-  policy      = data.aws_iam_policy_document.heartbeat_write.json
-
-  tags = var.tags
-}
-
-# ---------------------------------------------------------------------------
-# Per-agent role factory
-# Call module with agent_definitions = [{id, name, department}, ...]
+# Per-agent IAM roles
+# Each role is tagged with AgentId, AgentName, Department, and Role so the
+# orchestrator can query the registry and know what each agent can do.
 # ---------------------------------------------------------------------------
 resource "aws_iam_role" "agent" {
-  for_each = { for a in var.agent_definitions : a.id => a }
+  for_each = local.agents
 
   name = "${var.name_prefix}-agent-${each.key}"
 
   assume_role_policy = data.aws_iam_policy_document.agent_assume_role[each.key].json
 
   tags = merge(var.tags, {
-    AgentId     = each.key
-    AgentName   = each.value.name
-    Department  = each.value.department
+    AgentId    = each.key
+    AgentName  = each.value.name
+    Department = each.value.department
+    AgentRole  = each.value.role
+    AgentTools = join(",", each.value.tools)
   })
 }
 
 data "aws_iam_policy_document" "agent_assume_role" {
-  for_each = { for a in var.agent_definitions : a.id => a }
+  for_each = local.agents
 
   statement {
     effect  = "Allow"
@@ -186,8 +232,6 @@ data "aws_iam_policy_document" "agent_assume_role" {
       identifiers = each.value.principal_services
     }
 
-    # When assuming the role, the caller must supply the AgentId session tag
-    # matching this agent's id — prevents role misuse across agents
     condition {
       test     = "StringEquals"
       variable = "sts:RoleSessionName"
@@ -196,9 +240,65 @@ data "aws_iam_policy_document" "agent_assume_role" {
   }
 }
 
-resource "aws_iam_role_policy_attachment" "agent_heartbeat" {
-  for_each = { for a in var.agent_definitions : a.id => a }
+# ---------------------------------------------------------------------------
+# Per-tool IAM policies — one policy per (agent, tool) pair
+# Each agent only gets policies for the tools it declares.
+# ---------------------------------------------------------------------------
+resource "aws_iam_policy" "agent_tool" {
+  for_each = { for pair in local.agent_tool_pairs : pair.key => pair }
+
+  name        = "${var.name_prefix}-${each.value.agent_id}-${each.value.tool}"
+  description = "Grants ${each.value.agent_id} access to the ${each.value.tool} tool"
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid      = "ToolAccess"
+        Effect   = "Allow"
+        Action   = local.tool_permissions[each.value.tool].actions
+        Resource = local.tool_permissions[each.value.tool].resources
+      }
+    ]
+  })
+
+  tags = var.tags
+}
+
+resource "aws_iam_role_policy_attachment" "agent_tool" {
+  for_each = { for pair in local.agent_tool_pairs : pair.key => pair }
+
+  role       = aws_iam_role.agent[each.value.agent_id].name
+  policy_arn = aws_iam_policy.agent_tool[each.key].arn
+}
+
+# ---------------------------------------------------------------------------
+# Explicit DENY — every agent is blocked from DynamoDB admin ops
+# This is a guardrail regardless of what other policies grant.
+# ---------------------------------------------------------------------------
+data "aws_iam_policy_document" "deny_admin" {
+  statement {
+    sid    = "DenyDynamoDBAdmin"
+    effect = "Deny"
+    actions = [
+      "dynamodb:CreateTable",
+      "dynamodb:DeleteTable",
+      "dynamodb:UpdateTable",
+      "dynamodb:DeleteItem",
+    ]
+    resources = ["*"]
+  }
+}
+
+resource "aws_iam_policy" "deny_admin" {
+  name   = "${var.name_prefix}-deny-admin"
+  policy = data.aws_iam_policy_document.deny_admin.json
+  tags   = var.tags
+}
+
+resource "aws_iam_role_policy_attachment" "deny_admin" {
+  for_each = local.agents
 
   role       = aws_iam_role.agent[each.key].name
-  policy_arn = aws_iam_policy.heartbeat_write.arn
+  policy_arn = aws_iam_policy.deny_admin.arn
 }

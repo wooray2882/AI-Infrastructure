@@ -16,7 +16,7 @@ variable "history_table_name" {
 }
 
 variable "ttl_attribute_enabled" {
-  description = "Enable TTL on the current-state table. When true, agents may set a 'ttl' Unix timestamp attribute and DynamoDB will auto-expire the record."
+  description = "Enable TTL on the current-state table."
   type        = bool
   default     = false
 }
@@ -34,12 +34,29 @@ variable "pitr_enabled" {
 }
 
 variable "agent_definitions" {
-  description = "List of agents that should get their own IAM role. Each agent needs an id, name, department, and the AWS principal services allowed to assume the role."
+  description = <<-EOT
+    List of agents. Each agent gets its own IAM role scoped to exactly the
+    tools it needs. Supported tools:
+
+      heartbeat      — write to the two heartbeat DynamoDB tables (all agents)
+      dynamodb       — read/write any DynamoDB table (data agents)
+      rds            — connect to RDS via Data API (database agents)
+      s3             — read/write S3 objects (storage agents)
+      ses            — send email via SES (comms agents)
+      lambda_invoke  — invoke other Lambda-backed agents (orchestrator only)
+      bedrock        — call Bedrock LLM endpoints (LLM agents)
+      secrets        — read Secrets Manager values (any agent needing creds)
+
+    role = "orchestrator" gives the agent a read on the heartbeat registry
+    so it can discover available agents at runtime.
+  EOT
   type = list(object({
-    id                 = string       # short unique slug, e.g. "sales-leadgen-01"
-    name               = string       # human-readable, e.g. "Sales Lead Gen Agent"
-    department         = string       # e.g. "Sales", "Billing", "Tech"
-    principal_services = list(string) # e.g. ["lambda.amazonaws.com"] or ["ec2.amazonaws.com"]
+    id                 = string
+    name               = string
+    department         = string
+    role               = string        # e.g. "orchestrator", "database", "comms", "specialist"
+    tools              = list(string)  # tool names from the supported list above
+    principal_services = list(string)  # AWS services that may assume this role
   }))
   default = []
 }

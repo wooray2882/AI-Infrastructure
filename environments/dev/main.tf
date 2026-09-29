@@ -34,14 +34,53 @@ module "agent_heartbeat" {
   history_ttl_attribute_enabled = true
   pitr_enabled                  = false
 
-  # Add one entry per agent that needs its own IAM role.
-  # The id slug becomes part of the role name and must match the agent_id
-  # value the agent writes into its heartbeat records.
+  # Each agent declares its role and the exact tools it needs.
+  # Terraform creates one IAM policy per tool per agent — no agent can call
+  # a service outside its declared tools list.
   agent_definitions = [
+    # ── Orchestrator ───────────────────────────────────────────────────────
+    # Knows which agents exist (reads registry), delegates via Lambda invoke.
+    # Does not do domain work itself.
+    {
+      id                 = "orchestrator-01"
+      name               = "Corelink Orchestrator"
+      department         = "core"
+      role               = "orchestrator"
+      tools              = ["heartbeat", "lambda_invoke"]   # registry_read added automatically
+      principal_services = ["lambda.amazonaws.com"]
+    },
+
+    # ── Specialist: Database ────────────────────────────────────────────────
+    # Handles all schema design, migrations, and data queries.
+    # Cannot send email, invoke other agents, or touch S3.
+    {
+      id                 = "db-specialist-01"
+      name               = "Database Specialist Agent"
+      department         = "tech"
+      role               = "database"
+      tools              = ["heartbeat", "dynamodb", "rds", "secrets"]
+      principal_services = ["lambda.amazonaws.com"]
+    },
+
+    # ── Specialist: Communications ──────────────────────────────────────────
+    # Sends email only. Cannot touch databases or invoke other agents.
+    {
+      id                 = "comms-specialist-01"
+      name               = "Communications Specialist Agent"
+      department         = "comms"
+      role               = "comms"
+      tools              = ["heartbeat", "ses"]
+      principal_services = ["lambda.amazonaws.com"]
+    },
+
+    # ── Specialist: Sales Lead Gen ──────────────────────────────────────────
+    # Enriches and stores leads. Has data access + email + LLM for drafting.
     {
       id                 = "sales-leadgen-01"
       name               = "Sales Lead Gen Agent"
-      department         = "Sales"
+      department         = "sales"
+      role               = "specialist"
+      tools              = ["heartbeat", "dynamodb", "ses", "bedrock", "secrets"]
       principal_services = ["lambda.amazonaws.com"]
     },
   ]

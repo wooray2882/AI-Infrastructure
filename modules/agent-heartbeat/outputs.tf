@@ -23,12 +23,12 @@ output "history_table_arn" {
   value       = aws_dynamodb_table.heartbeat_history.arn
 }
 
-output "heartbeat_write_policy_arn" {
-  description = "ARN of the shared write policy. Attach to any additional agent roles created outside this module."
-  value       = aws_iam_policy.heartbeat_write.arn
+output "agent_role_arns" {
+  description = "Map of agent_id => IAM role ARN. The orchestrator uses these ARNs to invoke specialist agents."
+  value       = { for k, r in aws_iam_role.agent : k => r.arn }
 }
 
-output "agent_role_arns" {
-  description = "Map of agent_id => IAM role ARN for all agents defined in agent_definitions."
-  value       = { for k, r in aws_iam_role.agent : k => r.arn }
+output "agent_tool_policy_arns" {
+  description = "Map of 'agent_id__tool' => IAM policy ARN for every (agent, tool) pair created."
+  value       = { for k, p in aws_iam_policy.agent_tool : k => p.arn }
 }
