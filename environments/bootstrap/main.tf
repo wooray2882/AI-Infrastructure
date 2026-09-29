@@ -31,10 +31,32 @@ module "tf_backend" {
   }
 }
 
+module "github_oidc_role" {
+  source = "../../modules/github-oidc-role"
+
+  aws_account_id    = var.aws_account_id
+  state_bucket_name = var.state_bucket_name
+
+  # ZeroDown already created the GitHub OIDC provider in this account.
+  # Set to true only if you get "provider already exists" errors.
+  create_oidc_provider = false
+
+  tags = {
+    Project     = "corelink"
+    Environment = "bootstrap"
+    ManagedBy   = "terraform"
+  }
+}
+
 output "state_bucket_name" {
   value = module.tf_backend.bucket_name
 }
 
 output "lock_table_name" {
   value = module.tf_backend.lock_table_name
+}
+
+output "github_actions_role_arn" {
+  description = "Paste this into .github/workflows/*.yml as AWS_ROLE_ARN — or it's already hardcoded since the account ID is known."
+  value       = module.github_oidc_role.role_arn
 }

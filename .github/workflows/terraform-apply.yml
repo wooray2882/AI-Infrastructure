@@ -1,0 +1,77 @@
+name: Terraform Apply
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Which environment to apply"
+        required: true
+        type: choice
+        options:
+          - bootstrap
+          - dev
+      confirm:
+        description: "Type 'apply' to confirm you want to make real AWS changes"
+        required: true
+        type: string
+
+env:
+  AWS_REGION: us-east-1
+  AWS_ROLE_ARN: arn:aws:iam::000622214837:role/corelink-ai-github-actions-role
+  TF_VERSION: "1.9.8"
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  guard:
+    name: Confirm apply
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check confirmation input
+        run: |
+          if [ "${{ github.event.inputs.confirm }}" != "apply" ]; then
+            echo "Confirmation input was not 'apply'. Aborting."
+            exit 1
+          fi
+
+  apply:
+    name: Apply — ${{ github.event.inputs.environment }}
+    runs-on: ubuntu-latest
+    needs: guard
+    environment: production
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ env.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - name: Terraform Init (bootstrap, no backend)
+        if: github.event.inputs.environment == 'bootstrap'
+        working-directory: environments/bootstrap
+        run: terraform init -backend=false
+
+      - name: Terraform Apply (bootstrap)
+        if: github.event.inputs.environment == 'bootstrap'
+        working-directory: environments/bootstrap
+        run: terraform apply -auto-approve
+
+      - name: Terraform Init (dev)
+        if: github.event.inputs.environment == 'dev'
+        working-directory: environments/dev
+        run: terraform init
+
+      - name: Terraform Apply (dev)
+        if: github.event.inputs.environment == 'dev'
+        working-directory: environments/dev
+        run: terraform apply -auto-approve
