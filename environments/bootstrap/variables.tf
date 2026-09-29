@@ -5,6 +5,6 @@ variable "aws_region" {
 }
 
 variable "state_bucket_name" {
-  description = "Globally unique S3 bucket name for Terraform state. Example: 'corelink-ai-tf-state-<account-id>'."
+  description = "Globally unique S3 bucket name for Terraform state. Use 'corelink-ai-tf-state-000622214837'."
   type        = string
 }

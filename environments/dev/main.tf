@@ -11,7 +11,7 @@ terraform {
   # Run environments/bootstrap first to create this bucket and lock table.
   # Replace <account-id> with your AWS account ID before running terraform init.
   backend "s3" {
-    bucket         = "corelink-ai-tf-state-<account-id>"
+    bucket         = "corelink-ai-tf-state-000622214837"
     key            = "ai-infrastructure/dev/terraform.tfstate"
     region         = "us-east-1"
     dynamodb_table = "corelink-ai-tf-locks"
