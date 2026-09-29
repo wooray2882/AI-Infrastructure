@@ -1,6 +1,8 @@
 @import "./tokens/base.css";
 @import "./tokens/sharp-professional.css";
-@import "tailwindcss";
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
 body {
   background-color: var(--bg-page);
