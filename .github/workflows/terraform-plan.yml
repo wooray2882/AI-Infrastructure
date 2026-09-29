@@ -8,13 +8,10 @@ on:
 
 env:
   AWS_REGION: us-east-1
-  AWS_ROLE_ARN: arn:aws:iam::000622214837:role/corelink-ai-github-actions-role
   TF_VERSION: "1.9.8"
 
 permissions:
-  id-token: write
   contents: read
-  pull-requests: write
 
 jobs:
   plan-bootstrap:
@@ -23,10 +20,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Configure AWS credentials (OIDC)
+      - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ env.AWS_ROLE_ARN }}
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Setup Terraform
@@ -41,7 +39,6 @@ jobs:
       - name: Terraform Plan (bootstrap)
         working-directory: environments/bootstrap
         run: terraform plan -no-color
-        continue-on-error: true
 
   plan-dev:
     name: Plan — Dev
@@ -49,10 +46,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Configure AWS credentials (OIDC)
+      - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ env.AWS_ROLE_ARN }}
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Setup Terraform
@@ -67,4 +65,3 @@ jobs:
       - name: Terraform Plan (dev)
         working-directory: environments/dev
         run: terraform plan -no-color
-        continue-on-error: true
