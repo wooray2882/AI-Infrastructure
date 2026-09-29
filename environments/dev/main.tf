@@ -8,14 +8,15 @@ terraform {
     }
   }
 
-  # Replace with your actual S3 backend config once the ZeroDown backend exists
-  # backend "s3" {
-  #   bucket         = "corelink-tf-state"
-  #   key            = "ai-infrastructure/dev/terraform.tfstate"
-  #   region         = "us-east-1"
-  #   dynamodb_table = "corelink-tf-locks"
-  #   encrypt        = true
-  # }
+  # Run environments/bootstrap first to create this bucket and lock table.
+  # Replace <account-id> with your AWS account ID before running terraform init.
+  backend "s3" {
+    bucket         = "corelink-ai-tf-state-<account-id>"
+    key            = "ai-infrastructure/dev/terraform.tfstate"
+    region         = "us-east-1"
+    dynamodb_table = "corelink-ai-tf-locks"
+    encrypt        = true
+  }
 }
 
 provider "aws" {

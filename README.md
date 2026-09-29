@@ -5,6 +5,22 @@ Runs alongside the ZeroDown AWS/Terraform/EKS stack.
 
 ---
 
+## First-time setup — Bootstrap
+
+Before running any environment, create the dedicated S3 state bucket and DynamoDB lock table:
+
+```bash
+cd environments/bootstrap
+terraform init
+terraform apply -var="state_bucket_name=corelink-ai-tf-state-<your-account-id>"
+```
+
+This uses local state intentionally (chicken-and-egg). Once it runs, update the `bucket` value in `environments/dev/main.tf` with your actual account ID, then proceed normally.
+
+The bootstrap bucket is **completely separate** from ZeroDown's S3 bucket.
+
+---
+
 ## Phase 1 — Heartbeat
 
 A single agent reports its status to DynamoDB. No dashboard, no watcher, no auto-healing yet.
