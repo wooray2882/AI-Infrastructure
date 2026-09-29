@@ -13,10 +13,28 @@ export default function DepartmentGroup({
   return (
     <section>
       <div className="flex items-center gap-3 mb-3">
-        <h2 className="text-sm font-semibold uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>
+        <h2
+          style={{
+            color: 'var(--text-secondary)',
+            fontSize: 'var(--text-xs)',
+            fontWeight: 'var(--font-weight-bold)',
+            letterSpacing: 'var(--letter-spacing-wider)',
+            textTransform: 'uppercase',
+            fontFamily: 'var(--font-family-display)',
+          }}
+        >
           {department}
         </h2>
-        <span className="text-xs px-2 py-0.5 rounded-full" style={{ background: 'var(--border)', color: 'var(--text-muted)' }}>
+        <span
+          style={{
+            backgroundColor: 'var(--bg-subtle)',
+            color: 'var(--text-secondary)',
+            fontSize: 'var(--text-xs)',
+            padding: '2px var(--space-2)',
+            borderRadius: 'var(--radius-small)',
+            border: 'var(--border-width-default) solid var(--border-subtle)',
+          }}
+        >
           {online}/{agents.length} online
         </span>
       </div>

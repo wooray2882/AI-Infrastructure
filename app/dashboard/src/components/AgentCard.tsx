@@ -14,18 +14,31 @@ export default function AgentCard({ agent }: { agent: AgentRecord }) {
 
   return (
     <div
-      className="rounded-xl border p-4 flex flex-col gap-3 transition-colors"
+      className="flex flex-col gap-3 p-4 transition-shadow"
       style={{
-        backgroundColor: 'var(--bg-card)',
-        borderColor: 'var(--border)',
+        backgroundColor: 'var(--bg-surface)',
+        border: 'var(--border-width-default) solid var(--border-base)',
+        borderRadius: 'var(--radius-medium)',
+        boxShadow: 'var(--shadow-sm)',
       }}
     >
       <div className="flex items-start justify-between gap-2">
-        <div>
-          <p className="font-semibold text-sm" style={{ color: 'var(--text-primary)' }}>
+        <div className="min-w-0">
+          <p
+            className="font-medium truncate"
+            style={{
+              color: 'var(--text-primary)',
+              fontSize: 'var(--text-sm)',
+              fontFamily: 'var(--font-family-display)',
+              fontWeight: 'var(--font-weight-medium)',
+            }}
+          >
             {agent.agent_name}
           </p>
-          <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
+          <p
+            className="mt-0.5 truncate"
+            style={{ color: 'var(--text-tertiary)', fontSize: 'var(--text-xs)' }}
+          >
             {agent.agent_id}
           </p>
         </div>
@@ -33,26 +46,41 @@ export default function AgentCard({ agent }: { agent: AgentRecord }) {
       </div>
 
       {agent.message && (
-        <p className="text-xs italic" style={{ color: 'var(--text-muted)' }}>
+        <p
+          className="italic"
+          style={{ color: 'var(--text-secondary)', fontSize: 'var(--text-xs)' }}
+        >
           {agent.message}
         </p>
       )}
 
-      <div className="flex flex-wrap gap-1.5">
-        {tools.map(t => (
-          <span
-            key={t}
-            className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full"
-            style={{ background: 'var(--border)', color: 'var(--text-muted)' }}
-          >
-            <Wrench size={10} />
-            {t}
-          </span>
-        ))}
-      </div>
+      {tools.length > 0 && (
+        <div className="flex flex-wrap gap-1">
+          {tools.map(t => (
+            <span
+              key={t}
+              className="inline-flex items-center gap-1"
+              style={{
+                backgroundColor: 'var(--color-primary-light)',
+                color: 'var(--color-primary)',
+                fontSize: 'var(--text-xs)',
+                fontWeight: 'var(--font-weight-medium)',
+                padding: '2px var(--space-2)',
+                borderRadius: 'var(--radius-small)',
+              }}
+            >
+              <Wrench size={10} strokeWidth={1.75} />
+              {t}
+            </span>
+          ))}
+        </div>
+      )}
 
-      <div className="flex items-center gap-1 text-xs" style={{ color: 'var(--text-muted)' }}>
-        <Clock size={11} />
+      <div
+        className="flex items-center gap-1"
+        style={{ color: 'var(--text-tertiary)', fontSize: 'var(--text-xs)' }}
+      >
+        <Clock size={11} strokeWidth={1.75} />
         {agent.last_heartbeat ? timeAgo(agent.last_heartbeat) : 'never'}
       </div>
     </div>

@@ -1,0 +1,100 @@
+/* ─────────────────────────────────────────────────────────────
+   PRESET: Sharp / Professional
+   Load AFTER base.css. Overrides only the variable token block.
+   ───────────────────────────────────────────────────────────── */
+
+/* Google Fonts for this preset */
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;1,9..40,400&display=swap');
+
+:root {
+
+  /* ── SHAPE ───────────────────────────────────────────────── */
+  --radius-none:   0px;
+  --radius-small:  2px;
+  --radius-medium: 4px;
+  --radius-large:  6px;
+
+  --border-width-default: 1px;
+
+  /* ── BRAND COLORS ────────────────────────────────────────── */
+  --color-primary:         #1C3A6E;
+  --color-primary-hover:   #162E58;
+  --color-primary-light:   #EEF2FA;
+  --color-secondary:       #334155;
+  --color-secondary-hover: #273345;
+
+  /* ── TYPOGRAPHY ──────────────────────────────────────────── */
+  --font-family-display: 'Outfit', system-ui, sans-serif;
+  --font-family-body:    'DM Sans', system-ui, sans-serif;
+
+  --font-weight-light:   300;
+  --font-weight-normal:  400;
+  --font-weight-medium:  500;
+  --font-weight-bold:    600;
+
+  --letter-spacing-tight:  -0.01em;
+  --letter-spacing-normal:  0em;
+  --letter-spacing-wide:    0.04em;   /* uppercase labels */
+  --letter-spacing-wider:   0.08em;
+
+  --line-height-tight:   1.25;
+  --line-height-normal:  1.5;
+  --line-height-relaxed: 1.7;
+
+  /* ── ELEVATION ───────────────────────────────────────────── */
+  --shadow-none: none;
+  --shadow-sm:   0 1px 2px rgba(15,23,42,0.06);
+  --shadow-md:   0 2px 6px rgba(15,23,42,0.08);
+  --shadow-lg:   0 4px 12px rgba(15,23,42,0.1);
+
+  /* ── SURFACE TINT ────────────────────────────────────────── */
+  --bg-surface-tint: 0;   /* 0 = pure white surfaces */
+
+  /* ── MOTION ──────────────────────────────────────────────── */
+  --duration-fast:   80ms;
+  --duration-base:   120ms;
+  --duration-slow:   200ms;
+  --easing-default:  ease;
+
+  /* ── DENSITY ─────────────────────────────────────────────── */
+  --density-scale: 1;   /* multiply spacing tokens by this for compact/roomy layouts */
+
+  /* ── ICON LIBRARY ────────────────────────────────────────── */
+  /* To swap: change the CDN <script> and update --icon-library  */
+  --icon-library:      'lucide';           /* current: lucide | options: phosphor, heroicons, tabler */
+  --icon-cdn:          'https://cdn.jsdelivr.net/npm/lucide@0.468.0/dist/umd/lucide.min.js';
+  --icon-stroke-width: 1.75;              /* lucide default; phosphor uses fill instead */
+  --icon-size-xs:      12px;
+  --icon-size-sm:      14px;
+  --icon-size-md:      16px;
+  --icon-size-lg:      20px;
+  --icon-size-xl:      24px;
+
+  /* ── BADGE STYLE (solid) ─────────────────────────────────── */
+  --badge-default-bg:   #475569;  --badge-default-text: #ffffff;
+  --badge-primary-bg:   #1C3A6E;  --badge-primary-text: #ffffff;
+  --badge-success-bg:   #16A34A;  --badge-success-text: #ffffff;
+  --badge-error-bg:     #DC2626;  --badge-error-text:   #ffffff;
+  --badge-warning-bg:   #D97706;  --badge-warning-text: #ffffff;
+  --badge-info-bg:      #0284C7;  --badge-info-text:    #ffffff;
+}
+
+/* Dark mode overrides for brand colors */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --color-primary:         #4B78C8;
+    --color-primary-hover:   #5A87D7;
+    --color-primary-light:   #1C2E50;
+    --color-secondary:       #94A3B8;
+    --color-secondary-hover: #B0BDD0;
+    --badge-primary-bg:      #4B78C8;
+  }
+}
+:root[data-theme="dark"] {
+  --color-primary:         #4B78C8;
+  --color-primary-hover:   #5A87D7;
+  --color-primary-light:   #1C2E50;
+  --color-secondary:       #94A3B8;
+  --color-secondary-hover: #B0BDD0;
+  --badge-primary-bg:      #4B78C8;
+}
