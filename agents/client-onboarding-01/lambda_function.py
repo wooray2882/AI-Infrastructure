@@ -168,6 +168,11 @@ def lambda_handler(event, context):
 
         action_groups = build_action_groups(skills)
 
+        # If no skills are assigned and this is a scheduled heartbeat, stay idle
+        if not skills and not event.get("client_name"):
+            write_heartbeat(status="online", last_action="idle — no skills assigned yet")
+            return {"statusCode": 200, "body": json.dumps({"agent_id": AGENT_ID, "status": "idle"})}
+
         write_heartbeat(status="online", last_action=f"running inline agent for {client_name} at {company}")
         result = invoke_inline_agent(client_name, company, to_email, action_groups)
         print(f"[client-onboarding-01] agent result: {result[:200]}")
