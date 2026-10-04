@@ -104,12 +104,18 @@ locals {
 
   agents = { for a in var.agent_definitions : a.id => a }
 
-  # Orchestrators automatically get registry_read so they can discover agents
+  # Baseline tools every agent gets regardless of declared tools list.
+  # heartbeat  = write own status to current-state + history tables
+  # registry_read = scan the current-state table to discover other agents
+  baseline_tools = ["heartbeat", "registry_read"]
+
+  # Orchestrators also get lambda_invoke so they can call specialist agents
   agent_effective_tools = {
     for id, a in local.agents :
     id => toset(concat(
       a.tools,
-      a.role == "orchestrator" ? ["registry_read"] : []
+      local.baseline_tools,
+      a.role == "orchestrator" ? ["lambda_invoke"] : []
     ))
   }
 
@@ -270,6 +276,52 @@ resource "aws_iam_role_policy_attachment" "agent_tool" {
 
   role       = aws_iam_role.agent[each.value.agent_id].name
   policy_arn = aws_iam_policy.agent_tool[each.key].arn
+}
+
+# ---------------------------------------------------------------------------
+# Baseline policy — every agent can write heartbeats and read the registry
+# This is created once and attached to all agent roles.
+# ---------------------------------------------------------------------------
+resource "aws_iam_policy" "baseline" {
+  name        = "${var.name_prefix}-agent-baseline"
+  description = "Baseline policy for all Corelink agents: heartbeat write + registry read"
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid    = "HeartbeatWrite"
+        Effect = "Allow"
+        Action = [
+          "dynamodb:PutItem",
+          "dynamodb:UpdateItem",
+        ]
+        Resource = [
+          aws_dynamodb_table.heartbeat_current.arn,
+          aws_dynamodb_table.heartbeat_history.arn,
+        ]
+      },
+      {
+        Sid    = "RegistryRead"
+        Effect = "Allow"
+        Action = [
+          "dynamodb:GetItem",
+          "dynamodb:Query",
+          "dynamodb:Scan",
+        ]
+        Resource = [aws_dynamodb_table.heartbeat_current.arn]
+      }
+    ]
+  })
+
+  tags = var.tags
+}
+
+resource "aws_iam_role_policy_attachment" "baseline" {
+  for_each = local.agents
+
+  role       = aws_iam_role.agent[each.key].name
+  policy_arn = aws_iam_policy.baseline.arn
 }
 
 # ---------------------------------------------------------------------------
