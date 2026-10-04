@@ -31,7 +31,7 @@ AGENT_ID       = os.environ["AGENT_ID"]
 AGENT_NAME     = os.environ["AGENT_NAME"]
 AGENT_DEPT     = os.environ["AGENT_DEPARTMENT"]
 FROM_EMAIL     = os.environ["FROM_EMAIL"]
-MODEL_ID       = os.environ.get("BEDROCK_MODEL_ID", "us.anthropic.claude-haiku-4-5-20251001-v1:0")
+MODEL_ID       = os.environ.get("BEDROCK_MODEL_ID", "amazon.nova-micro-v1:0")
 
 dynamodb       = boto3.resource("dynamodb")
 current_table  = dynamodb.Table(CURRENT_TABLE)
@@ -79,13 +79,12 @@ Return only the email body text."""
     response = bedrock.invoke_model(
         modelId=MODEL_ID,
         body=json.dumps({
-            "anthropic_version": "bedrock-2023-05-31",
-            "max_tokens": 512,
-            "messages": [{"role": "user", "content": prompt}],
+            "messages": [{"role": "user", "content": [{"text": prompt}]}],
+            "inferenceConfig": {"max_new_tokens": 512},
         }),
     )
     result = json.loads(response["body"].read())
-    return result["content"][0]["text"]
+    return result["output"]["message"]["content"][0]["text"]
 
 
 def send_email(to_email: str, subject: str, body: str) -> str:

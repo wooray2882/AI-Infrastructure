@@ -30,7 +30,7 @@ AGENT_ID       = os.environ["AGENT_ID"]
 AGENT_NAME     = os.environ["AGENT_NAME"]
 AGENT_DEPT     = os.environ["AGENT_DEPARTMENT"]
 FROM_EMAIL     = os.environ["FROM_EMAIL"]
-MODEL_ID       = os.environ.get("BEDROCK_MODEL_ID", "us.anthropic.claude-haiku-4-5-20251001-v1:0")
+MODEL_ID       = os.environ.get("BEDROCK_MODEL_ID", "amazon.nova-micro-v1:0")
 
 dynamodb       = boto3.resource("dynamodb")
 current_table  = dynamodb.Table(CURRENT_TABLE)
@@ -77,25 +77,23 @@ Return ONLY the email body text, no subject line, no headers."""
     response = bedrock.invoke_model(
         modelId=MODEL_ID,
         body=json.dumps({
-            "anthropic_version": "bedrock-2023-05-31",
-            "max_tokens": 512,
-            "messages": [{"role": "user", "content": prompt}],
+            "messages": [{"role": "user", "content": [{"text": prompt}]}],
+            "inferenceConfig": {"max_new_tokens": 512},
         }),
     )
     result = json.loads(response["body"].read())
-    body = result["content"][0]["text"]
+    body = result["output"]["message"]["content"][0]["text"]
 
     subject_prompt = f"Write a short, friendly email subject line (under 10 words) for a welcome/onboarding email to {client_name} at {company}. Return only the subject line, nothing else."
     subject_response = bedrock.invoke_model(
         modelId=MODEL_ID,
         body=json.dumps({
-            "anthropic_version": "bedrock-2023-05-31",
-            "max_tokens": 64,
-            "messages": [{"role": "user", "content": subject_prompt}],
+            "messages": [{"role": "user", "content": [{"text": subject_prompt}]}],
+            "inferenceConfig": {"max_new_tokens": 64},
         }),
     )
     subject_result = json.loads(subject_response["body"].read())
-    subject = subject_result["content"][0]["text"].strip().strip('"')
+    subject = subject_result["output"]["message"]["content"][0]["text"].strip().strip('"')
 
     return {"subject": subject, "body": body}
 
