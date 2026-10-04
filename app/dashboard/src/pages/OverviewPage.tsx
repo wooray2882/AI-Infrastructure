@@ -1,6 +1,5 @@
 import { useMemo, useState } from 'react'
 import { Bot } from 'lucide-react'
-import { DonutChart, BarChart, Legend } from '@tremor/react'
 import { ChevronUp, ChevronDown, ChevronsUpDown, CheckCircle2, AlertCircle, Clock3, MinusCircle } from 'lucide-react'
 import { useAgents } from '../layouts/AppLayout'
 import StatusBadge from '../components/StatusBadge'
@@ -94,6 +93,97 @@ const TH_STYLE = {
   backgroundColor: 'var(--bg-subtle)',
 }
 
+// ---------------------------------------------------------------------------
+// Custom Donut Chart — SVG-based, uses explicit hex colors
+// ---------------------------------------------------------------------------
+function CustomDonut({
+  data,
+  colorMap,
+}: {
+  data: { name: string; value: number }[]
+  colorMap: Record<string, string>
+}) {
+  const total = data.reduce((s, d) => s + d.value, 0)
+  if (total === 0) return null
+
+  const r = 54
+  const sw = 16
+  const circ = 2 * Math.PI * r
+  let acc = 0
+  const segments = data.map(d => {
+    const len = (d.value / total) * circ
+    const seg = { ...d, len, acc }
+    acc += len
+    return seg
+  })
+
+  return (
+    <div style={{ display: 'flex', justifyContent: 'center' }}>
+      <svg viewBox="0 0 140 140" width={144} height={144}>
+        <g transform="rotate(-90 70 70)">
+          {segments.map((seg, i) => (
+            <circle
+              key={i}
+              cx="70" cy="70" r={r}
+              fill="none"
+              stroke={colorMap[seg.name] ?? '#64748b'}
+              strokeWidth={sw}
+              strokeDasharray={`${seg.len} ${circ - seg.len}`}
+              strokeDashoffset={-seg.acc}
+              strokeLinecap="butt"
+            />
+          ))}
+        </g>
+        <text x="70" y="65" textAnchor="middle" fontSize="22" fontWeight="700" fill="currentColor" fontFamily="var(--font-family-display)">{total}</text>
+        <text x="70" y="82" textAnchor="middle" fontSize="11" fill="#94a3b8" fontFamily="var(--font-family-body)">agents</text>
+      </svg>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Custom Stacked Bar Chart — div-based, uses explicit hex colors
+// ---------------------------------------------------------------------------
+function CustomStackedBar({
+  data,
+  colorMap,
+}: {
+  data: { department: string; online: number; idle: number; error: number }[]
+  colorMap: Record<string, string>
+}) {
+  if (data.length === 0) return null
+  const max = Math.max(...data.map(d => d.online + d.idle + d.error), 1)
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 8 }}>
+      {data.map(row => {
+        const total = row.online + row.idle + row.error
+        const pct = (n: number) => `${(n / max) * 100}%`
+        return (
+          <div key={row.department}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+              <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-secondary)' }}>{row.department}</span>
+              <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-tertiary)' }}>{total}</span>
+            </div>
+            <div style={{ height: 20, display: 'flex', borderRadius: 4, overflow: 'hidden', backgroundColor: 'var(--bg-subtle)' }}>
+              {(['online', 'idle', 'error'] as const).map(k => row[k] > 0 && (
+                <div
+                  key={k}
+                  style={{
+                    width: pct(row[k]),
+                    backgroundColor: colorMap[k],
+                    transition: 'width 0.4s ease',
+                  }}
+                />
+              ))}
+            </div>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
 export default function OverviewPage() {
   const { agents } = useAgents()
   const agentList = Object.values(agents)
@@ -151,11 +241,13 @@ export default function OverviewPage() {
   }
 
   const STATUS_COLORS: Record<string, string> = {
-    Online: '#22c55e',
-    Idle: '#f59e0b',
-    Error: '#ef4444',
+    Online:  '#22c55e',
+    Idle:    '#f59e0b',
+    Error:   '#ef4444',
     Offline: '#94a3b8',
   }
+
+  const DEPT_COLORS = { online: '#22c55e', idle: '#f59e0b', error: '#ef4444' }
 
   if (agentList.length === 0) {
     return (
@@ -235,19 +327,15 @@ export default function OverviewPage() {
           >
             Status breakdown
           </p>
-          <DonutChart
-            data={statusData}
-            category="value"
-            index="name"
-            colors={['green', 'yellow', 'red', 'slate']}
-            showLabel={true}
-            className="h-36"
-          />
-          <Legend
-            categories={statusData.map(d => d.name)}
-            colors={['green', 'yellow', 'red', 'slate']}
-            className="mt-4"
-          />
+          <CustomDonut data={statusData} colorMap={STATUS_COLORS} />
+          <div className="flex flex-wrap gap-3 mt-4">
+            {statusData.map(d => (
+              <span key={d.name} className="flex items-center gap-1.5" style={{ fontSize: 'var(--text-xs)', color: 'var(--text-secondary)' }}>
+                <span style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: STATUS_COLORS[d.name], display: 'inline-block', flexShrink: 0 }} />
+                {d.name}
+              </span>
+            ))}
+          </div>
         </div>
 
         {/* Bar — agents per department */}
@@ -272,15 +360,15 @@ export default function OverviewPage() {
           >
             Agents per department
           </p>
-          <BarChart
-            data={deptCounts}
-            index="department"
-            categories={['online', 'idle', 'error']}
-            colors={['green', 'yellow', 'red']}
-            stack={true}
-            className="h-36"
-            showLegend={true}
-          />
+          <CustomStackedBar data={deptCounts} colorMap={DEPT_COLORS} />
+          <div className="flex flex-wrap gap-3 mt-4">
+            {(['online', 'idle', 'error'] as const).map(k => (
+              <span key={k} className="flex items-center gap-1.5" style={{ fontSize: 'var(--text-xs)', color: 'var(--text-secondary)' }}>
+                <span style={{ width: 8, height: 8, borderRadius: 2, backgroundColor: DEPT_COLORS[k], display: 'inline-block', flexShrink: 0 }} />
+                {k}
+              </span>
+            ))}
+          </div>
         </div>
       </div>
 
