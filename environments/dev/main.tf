@@ -83,6 +83,28 @@ module "agent_heartbeat" {
       tools              = ["heartbeat", "dynamodb", "ses", "bedrock", "secrets"]
       principal_services = ["lambda.amazonaws.com"]
     },
+
+    # ── Client Relations: Onboarding ────────────────────────────────────────
+    # Uses Claude via Bedrock to write personalised welcome emails, sends via SES.
+    {
+      id                 = "client-onboarding-01"
+      name               = "Client Onboarding Agent"
+      department         = "client-relations"
+      role               = "specialist"
+      tools              = ["ses", "bedrock"]
+      principal_services = ["lambda.amazonaws.com"]
+    },
+
+    # ── Client Relations: Support ───────────────────────────────────────────
+    # Uses Claude via Bedrock to draft support responses, sends via SES.
+    {
+      id                 = "client-support-01"
+      name               = "Client Support Agent"
+      department         = "client-relations"
+      role               = "specialist"
+      tools              = ["ses", "bedrock"]
+      principal_services = ["lambda.amazonaws.com"]
+    },
   ]
 
   tags = {
@@ -128,9 +150,61 @@ module "orchestrator_01" {
   }
 }
 
+# ---------------------------------------------------------------------------
+# Agent: client-onboarding-01
+# AI-powered onboarding email agent — Bedrock (Claude Haiku) + SES
+# ---------------------------------------------------------------------------
+module "client_onboarding_01" {
+  source = "../../agents/client-onboarding-01"
+
+  name_prefix        = "corelink"
+  agent_role_arn     = module.agent_heartbeat.agent_role_arns["client-onboarding-01"]
+  agent_role_id      = module.agent_heartbeat.agent_role_ids["client-onboarding-01"]
+  current_table_name = module.agent_heartbeat.current_table_name
+  history_table_name = module.agent_heartbeat.history_table_name
+  from_email         = var.from_email
+
+  tags = {
+    Project     = "corelink"
+    Environment = "dev"
+    ManagedBy   = "terraform"
+  }
+}
+
+# ---------------------------------------------------------------------------
+# Agent: client-support-01
+# AI-powered support response agent — Bedrock (Claude Haiku) + SES
+# ---------------------------------------------------------------------------
+module "client_support_01" {
+  source = "../../agents/client-support-01"
+
+  name_prefix        = "corelink"
+  agent_role_arn     = module.agent_heartbeat.agent_role_arns["client-support-01"]
+  agent_role_id      = module.agent_heartbeat.agent_role_ids["client-support-01"]
+  current_table_name = module.agent_heartbeat.current_table_name
+  history_table_name = module.agent_heartbeat.history_table_name
+  from_email         = var.from_email
+
+  tags = {
+    Project     = "corelink"
+    Environment = "dev"
+    ManagedBy   = "terraform"
+  }
+}
+
 output "orchestrator_function_name" {
   description = "Invoke this Lambda to fire a real heartbeat: aws lambda invoke --function-name <name> /tmp/out.json"
   value       = module.orchestrator_01.function_name
+}
+
+output "client_onboarding_function_name" {
+  description = "Invoke with a client payload: {client_name, company, to_email}"
+  value       = module.client_onboarding_01.function_name
+}
+
+output "client_support_function_name" {
+  description = "Invoke with a support payload: {client_name, query, to_email}"
+  value       = module.client_support_01.function_name
 }
 
 output "websocket_url" {

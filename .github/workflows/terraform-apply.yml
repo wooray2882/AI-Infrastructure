@@ -72,4 +72,6 @@ jobs:
       - name: Terraform Apply (dev)
         if: github.event.inputs.environment == 'dev'
         working-directory: environments/dev
+        env:
+          TF_VAR_from_email: ${{ secrets.SES_FROM_EMAIL }}
         run: terraform apply -auto-approve
