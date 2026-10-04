@@ -8,6 +8,7 @@ export interface AgentRecord {
   status: 'online' | 'idle' | 'error' | 'offline'
   tools: string
   last_heartbeat: string
+  last_action?: string
   message?: string
   extra?: Record<string, unknown>
 }
