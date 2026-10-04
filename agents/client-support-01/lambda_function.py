@@ -31,7 +31,7 @@ AGENT_ID       = os.environ["AGENT_ID"]
 AGENT_NAME     = os.environ["AGENT_NAME"]
 AGENT_DEPT     = os.environ["AGENT_DEPARTMENT"]
 FROM_EMAIL     = os.environ["FROM_EMAIL"]
-MODEL_ID       = os.environ.get("BEDROCK_MODEL_ID", "anthropic.claude-3-haiku-20240307-v1:0")
+MODEL_ID       = os.environ.get("BEDROCK_MODEL_ID", "us.anthropic.claude-haiku-4-5-20251001-v1:0")
 
 dynamodb       = boto3.resource("dynamodb")
 current_table  = dynamodb.Table(CURRENT_TABLE)

@@ -28,7 +28,7 @@ resource "aws_lambda_function" "support" {
       AGENT_NAME              = "Client Support Agent"
       AGENT_DEPARTMENT        = "client-relations"
       FROM_EMAIL              = var.from_email
-      BEDROCK_MODEL_ID        = "anthropic.claude-3-haiku-20240307-v1:0"
+      BEDROCK_MODEL_ID        = "us.anthropic.claude-haiku-4-5-20251001-v1:0"
     }
   }
 
