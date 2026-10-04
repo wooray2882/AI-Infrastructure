@@ -37,3 +37,13 @@ output "agent_tool_policy_arns" {
   description = "Map of 'agent_id__tool' => IAM policy ARN for every (agent, tool) pair created."
   value       = { for k, p in aws_iam_policy.agent_tool : k => p.arn }
 }
+
+output "agent_skills_table_name" {
+  description = "Name of the agent-to-skill assignment table."
+  value       = aws_dynamodb_table.agent_skills.name
+}
+
+output "agent_skills_table_arn" {
+  description = "ARN of the agent-to-skill assignment table."
+  value       = aws_dynamodb_table.agent_skills.arn
+}

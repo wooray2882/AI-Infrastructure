@@ -1,0 +1,64 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "Email Skill",
+    "description": "Compose and send an email via Amazon SES. Call send_email with a recipient, subject, and body.",
+    "version": "1.0.0"
+  },
+  "paths": {
+    "/send_email": {
+      "post": {
+        "operationId": "send_email",
+        "summary": "Send an email to a recipient",
+        "description": "Sends an email via Amazon SES from the agent's configured sender address. Use this whenever you need to reach a client or contact by email.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["to_email", "subject", "body"],
+                "properties": {
+                  "to_email": {
+                    "type": "string",
+                    "description": "Recipient email address"
+                  },
+                  "subject": {
+                    "type": "string",
+                    "description": "Email subject line (under 10 words)"
+                  },
+                  "body": {
+                    "type": "string",
+                    "description": "Full email body text"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Email sent successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message_id": {
+                      "type": "string",
+                      "description": "SES message ID confirming delivery"
+                    },
+                    "status": {
+                      "type": "string",
+                      "description": "Always 'sent'"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

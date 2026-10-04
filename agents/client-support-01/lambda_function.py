@@ -1,11 +1,8 @@
 """
-client-support-01 — Client Relations: Client Support Agent
+client-support-01 — Client Relations: Support Agent
 
-On each invocation:
-1. Takes a client query from the event payload (falls back to a demo query)
-2. Uses Claude via Bedrock to draft a helpful support response
-3. Sends the response via SES
-4. Writes a heartbeat
+Uses Bedrock Inline Agents at runtime. Skills (action groups) are read from
+the agent-skills DynamoDB table and attached dynamically to each invocation.
 
 Environment variables (set by Terraform):
   HEARTBEAT_CURRENT_TABLE  — corelink-agent-heartbeats
@@ -13,8 +10,10 @@ Environment variables (set by Terraform):
   AGENT_ID                 — client-support-01
   AGENT_NAME               — Client Support Agent
   AGENT_DEPARTMENT         — client-relations
-  FROM_EMAIL               — your verified SES email/domain
-  BEDROCK_MODEL_ID         — anthropic.claude-3-haiku-20240307-v1:0
+  FROM_EMAIL               — verified SES sender address
+  BEDROCK_MODEL_ID         — amazon.nova-micro-v1:0
+  AGENT_SKILLS_TABLE       — corelink-agent-skills
+  SKILL_EMAIL_LAMBDA_ARN   — ARN of the skill-email action group Lambda
 """
 
 import json
@@ -25,19 +24,52 @@ from datetime import datetime, timezone
 import boto3
 from botocore.exceptions import ClientError
 
-CURRENT_TABLE  = os.environ["HEARTBEAT_CURRENT_TABLE"]
-HISTORY_TABLE  = os.environ["HEARTBEAT_HISTORY_TABLE"]
-AGENT_ID       = os.environ["AGENT_ID"]
-AGENT_NAME     = os.environ["AGENT_NAME"]
-AGENT_DEPT     = os.environ["AGENT_DEPARTMENT"]
-FROM_EMAIL     = os.environ["FROM_EMAIL"]
-MODEL_ID       = os.environ.get("BEDROCK_MODEL_ID", "amazon.nova-micro-v1:0")
+CURRENT_TABLE          = os.environ["HEARTBEAT_CURRENT_TABLE"]
+HISTORY_TABLE          = os.environ["HEARTBEAT_HISTORY_TABLE"]
+AGENT_ID               = os.environ["AGENT_ID"]
+AGENT_NAME             = os.environ["AGENT_NAME"]
+AGENT_DEPT             = os.environ["AGENT_DEPARTMENT"]
+FROM_EMAIL             = os.environ["FROM_EMAIL"]
+MODEL_ID               = os.environ.get("BEDROCK_MODEL_ID", "amazon.nova-micro-v1:0")
+AGENT_SKILLS_TABLE     = os.environ["AGENT_SKILLS_TABLE"]
+SKILL_EMAIL_LAMBDA_ARN = os.environ["SKILL_EMAIL_LAMBDA_ARN"]
 
-dynamodb       = boto3.resource("dynamodb")
-current_table  = dynamodb.Table(CURRENT_TABLE)
-history_table  = dynamodb.Table(HISTORY_TABLE)
-bedrock        = boto3.client("bedrock-runtime")
-ses            = boto3.client("ses")
+dynamodb      = boto3.resource("dynamodb")
+current_table = dynamodb.Table(CURRENT_TABLE)
+history_table = dynamodb.Table(HISTORY_TABLE)
+skills_table  = dynamodb.Table(AGENT_SKILLS_TABLE)
+bedrock_agent = boto3.client("bedrock-agent-runtime")
+
+
+EMAIL_API_SCHEMA = json.dumps({
+    "openapi": "3.0.0",
+    "info": {"title": "Email Skill", "version": "1.0"},
+    "paths": {
+        "/send_email": {
+            "post": {
+                "operationId": "send_email",
+                "summary": "Send an email via SES",
+                "requestBody": {
+                    "required": True,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "required": ["to_email", "subject", "body"],
+                                "properties": {
+                                    "to_email": {"type": "string"},
+                                    "subject":  {"type": "string"},
+                                    "body":     {"type": "string"},
+                                },
+                            }
+                        }
+                    },
+                },
+                "responses": {"200": {"description": "Email sent"}},
+            }
+        }
+    },
+})
 
 
 def write_heartbeat(status: str, last_action: str, extra: dict | None = None) -> None:
@@ -49,7 +81,7 @@ def write_heartbeat(status: str, last_action: str, extra: dict | None = None) ->
         "role":           "specialist",
         "status":         status,
         "last_action":    last_action,
-        "tools":          "ses bedrock",
+        "tools":          "bedrock_agent dynamodb ses",
         "last_heartbeat": now,
         "timestamp":      now,
     }
@@ -59,83 +91,96 @@ def write_heartbeat(status: str, last_action: str, extra: dict | None = None) ->
     history_table.put_item(Item={**record, "record_id": str(uuid.uuid4())})
 
 
-def draft_support_response(client_name: str, query: str) -> str:
-    prompt = f"""You are a knowledgeable, empathetic client support agent for Corelink, an AI-powered business operations company.
-
-A client has submitted a support request. Draft a helpful, professional response.
-
-Client name: {client_name}
-Client query: {query}
-
-Your response should:
-1. Acknowledge their question or concern directly
-2. Provide a clear, actionable answer or next step
-3. Offer to follow up if they need more help
-4. Be warm but efficient — under 150 words
-5. End with your name: "— The Corelink Support Team"
-
-Return only the email body text."""
-
-    response = bedrock.invoke_model(
-        modelId=MODEL_ID,
-        body=json.dumps({
-            "messages": [{"role": "user", "content": [{"text": prompt}]}],
-            "inferenceConfig": {"max_new_tokens": 512},
-        }),
+def get_agent_skills() -> list[str]:
+    resp = skills_table.query(
+        KeyConditionExpression="agent_id = :aid",
+        ExpressionAttributeValues={":aid": AGENT_ID},
     )
-    result = json.loads(response["body"].read())
-    return result["output"]["message"]["content"][0]["text"]
+    return [item["skill_id"] for item in resp.get("Items", [])]
 
 
-def send_email(to_email: str, subject: str, body: str) -> str:
-    response = ses.send_email(
-        Source=FROM_EMAIL,
-        Destination={"ToAddresses": [to_email]},
-        Message={
-            "Subject": {"Data": subject},
-            "Body":    {"Text": {"Data": body}},
-        },
+def build_action_groups(skills: list[str]) -> list[dict]:
+    groups = []
+    if "email" in skills:
+        groups.append({
+            "actionGroupName": "EmailSkill",
+            "description": "Send emails to clients via SES",
+            "actionGroupExecutor": {"lambda": SKILL_EMAIL_LAMBDA_ARN},
+            "apiSchema": {"payload": EMAIL_API_SCHEMA},
+        })
+    return groups
+
+
+def invoke_inline_agent(client_name: str, query: str, to_email: str, action_groups: list[dict]) -> str:
+    task = (
+        f"You are a professional client support agent for Corelink.\n\n"
+        f"A client needs help:\n"
+        f"- Name: {client_name}\n"
+        f"- Email: {to_email}\n"
+        f"- Query: {query}\n\n"
+        f"Please draft and send a helpful, empathetic support response. "
+        f"The response should:\n"
+        f"1. Acknowledge their issue with empathy\n"
+        f"2. Provide a clear, actionable answer or next step\n"
+        f"3. Let them know they can follow up if needed\n"
+        f"4. Be professional but warm, under 150 words\n\n"
+        f"Use the send_email tool to send your response now."
     )
-    return response["MessageId"]
+
+    kwargs = {
+        "foundationModel": MODEL_ID,
+        "instruction": "You are a client support specialist. Use the available tools to complete tasks.",
+        "sessionId": str(uuid.uuid4()),
+        "inputText": task,
+    }
+    if action_groups:
+        kwargs["actionGroups"] = action_groups
+
+    response = bedrock_agent.invoke_inline_agent(**kwargs)
+
+    output_text = ""
+    for event in response.get("completion", []):
+        chunk = event.get("chunk", {})
+        if "bytes" in chunk:
+            output_text += chunk["bytes"].decode("utf-8")
+
+    return output_text or "Support response sent."
 
 
 def lambda_handler(event, context):
     print(f"[client-support-01] invoked — event: {json.dumps(event)}")
 
-    write_heartbeat(status="online", last_action="started — reviewing support queue")
+    write_heartbeat(status="online", last_action="started — preparing support response")
 
-    # Support query comes from event; demo values used for scheduled heartbeat pings
-    client_name = event.get("client_name", "Demo Client")
-    query       = event.get("query",       "How do I access my monthly report?")
+    client_name = event.get("client_name", "Alex Johnson")
+    query       = event.get("query",       "I need help getting started with my account.")
     to_email    = event.get("to_email",    FROM_EMAIL)
-    subject     = event.get("subject",     f"Re: Support request from {client_name}")
 
     try:
-        write_heartbeat(status="online", last_action=f"drafting response for {client_name}")
+        write_heartbeat(status="online", last_action=f"loading skills for support ticket from {client_name}")
+        skills = get_agent_skills()
+        print(f"[client-support-01] assigned skills: {skills}")
 
-        response_body = draft_support_response(client_name, query)
-        print(f"[client-support-01] response drafted for {client_name}")
+        action_groups = build_action_groups(skills)
 
-        message_id = send_email(to_email, subject, response_body)
-        print(f"[client-support-01] response sent — SES message ID: {message_id}")
+        write_heartbeat(status="online", last_action=f"running inline agent for {client_name}")
+        result = invoke_inline_agent(client_name, query, to_email, action_groups)
+        print(f"[client-support-01] agent result: {result[:200]}")
 
         write_heartbeat(
             status="online",
-            last_action=f"support response sent to {to_email}",
-            extra={
-                "last_client":    client_name,
-                "last_query":     query[:100],
-                "ses_message_id": message_id,
-            },
+            last_action=f"support response sent to {client_name}",
+            extra={"last_client": client_name, "skills_used": " ".join(skills)},
         )
 
         return {
             "statusCode": 200,
             "body": json.dumps({
-                "agent_id":   AGENT_ID,
-                "status":     "online",
-                "client":     client_name,
-                "message_id": message_id,
+                "agent_id": AGENT_ID,
+                "status":   "online",
+                "client":   client_name,
+                "skills":   skills,
+                "result":   result,
             }),
         }
 

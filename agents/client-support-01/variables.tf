@@ -28,6 +28,16 @@ variable "from_email" {
   description = "Verified SES email address used as the From: address for support responses."
 }
 
+variable "agent_skills_table" {
+  type        = string
+  description = "Name of the DynamoDB agent-skills assignment table."
+}
+
+variable "skill_email_lambda_arn" {
+  type        = string
+  description = "ARN of the skill-email action group Lambda."
+}
+
 variable "tags" {
   type        = map(string)
   default     = {}

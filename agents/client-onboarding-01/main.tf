@@ -29,6 +29,8 @@ resource "aws_lambda_function" "onboarding" {
       AGENT_DEPARTMENT        = "client-relations"
       FROM_EMAIL              = var.from_email
       BEDROCK_MODEL_ID        = "amazon.nova-micro-v1:0"
+      AGENT_SKILLS_TABLE      = var.agent_skills_table
+      SKILL_EMAIL_LAMBDA_ARN  = var.skill_email_lambda_arn
     }
   }
 

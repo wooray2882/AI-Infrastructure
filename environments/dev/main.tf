@@ -85,24 +85,24 @@ module "agent_heartbeat" {
     },
 
     # ── Client Relations: Onboarding ────────────────────────────────────────
-    # Uses Claude via Bedrock to write personalised welcome emails, sends via SES.
+    # Uses Bedrock inline agents + skill-email action group.
     {
       id                 = "client-onboarding-01"
       name               = "Client Onboarding Agent"
       department         = "client-relations"
       role               = "specialist"
-      tools              = ["ses", "bedrock"]
+      tools              = ["ses", "bedrock", "bedrock_agent", "dynamodb"]
       principal_services = ["lambda.amazonaws.com"]
     },
 
     # ── Client Relations: Support ───────────────────────────────────────────
-    # Uses Claude via Bedrock to draft support responses, sends via SES.
+    # Uses Bedrock inline agents + skill-email action group.
     {
       id                 = "client-support-01"
       name               = "Client Support Agent"
       department         = "client-relations"
       role               = "specialist"
-      tools              = ["ses", "bedrock"]
+      tools              = ["ses", "bedrock", "bedrock_agent", "dynamodb"]
       principal_services = ["lambda.amazonaws.com"]
     },
   ]
@@ -154,15 +154,35 @@ module "orchestrator_01" {
 # Agent: client-onboarding-01
 # AI-powered onboarding email agent — Bedrock (Claude Haiku) + SES
 # ---------------------------------------------------------------------------
+# ---------------------------------------------------------------------------
+# Skill: email
+# Bedrock action group Lambda that sends emails via SES.
+# Agents attach this skill at runtime via the agent-skills table.
+# ---------------------------------------------------------------------------
+module "skill_email" {
+  source = "../../modules/skill-email"
+
+  name_prefix = "corelink"
+  from_email  = var.from_email
+
+  tags = {
+    Project     = "corelink"
+    Environment = "dev"
+    ManagedBy   = "terraform"
+  }
+}
+
 module "client_onboarding_01" {
   source = "../../agents/client-onboarding-01"
 
-  name_prefix        = "corelink"
-  agent_role_arn     = module.agent_heartbeat.agent_role_arns["client-onboarding-01"]
-  agent_role_id      = module.agent_heartbeat.agent_role_ids["client-onboarding-01"]
-  current_table_name = module.agent_heartbeat.current_table_name
-  history_table_name = module.agent_heartbeat.history_table_name
-  from_email         = var.from_email
+  name_prefix            = "corelink"
+  agent_role_arn         = module.agent_heartbeat.agent_role_arns["client-onboarding-01"]
+  agent_role_id          = module.agent_heartbeat.agent_role_ids["client-onboarding-01"]
+  current_table_name     = module.agent_heartbeat.current_table_name
+  history_table_name     = module.agent_heartbeat.history_table_name
+  from_email             = var.from_email
+  agent_skills_table     = module.agent_heartbeat.agent_skills_table_name
+  skill_email_lambda_arn = module.skill_email.lambda_arn
 
   tags = {
     Project     = "corelink"
@@ -173,17 +193,19 @@ module "client_onboarding_01" {
 
 # ---------------------------------------------------------------------------
 # Agent: client-support-01
-# AI-powered support response agent — Bedrock (Claude Haiku) + SES
+# AI-powered support response agent — Bedrock inline agents + skill-email
 # ---------------------------------------------------------------------------
 module "client_support_01" {
   source = "../../agents/client-support-01"
 
-  name_prefix        = "corelink"
-  agent_role_arn     = module.agent_heartbeat.agent_role_arns["client-support-01"]
-  agent_role_id      = module.agent_heartbeat.agent_role_ids["client-support-01"]
-  current_table_name = module.agent_heartbeat.current_table_name
-  history_table_name = module.agent_heartbeat.history_table_name
-  from_email         = var.from_email
+  name_prefix            = "corelink"
+  agent_role_arn         = module.agent_heartbeat.agent_role_arns["client-support-01"]
+  agent_role_id          = module.agent_heartbeat.agent_role_ids["client-support-01"]
+  current_table_name     = module.agent_heartbeat.current_table_name
+  history_table_name     = module.agent_heartbeat.history_table_name
+  from_email             = var.from_email
+  agent_skills_table     = module.agent_heartbeat.agent_skills_table_name
+  skill_email_lambda_arn = module.skill_email.lambda_arn
 
   tags = {
     Project     = "corelink"
@@ -220,4 +242,14 @@ output "dashboard_url" {
 output "dashboard_bucket" {
   description = "Upload the built React app here: aws s3 sync app/dashboard/dist s3://<bucket>"
   value       = module.agent_dashboard.dashboard_bucket
+}
+
+output "agent_skills_table_name" {
+  description = "DynamoDB table that maps agent_id → skill_id assignments."
+  value       = module.agent_heartbeat.agent_skills_table_name
+}
+
+output "skill_email_lambda_arn" {
+  description = "ARN of the email skill action group Lambda."
+  value       = module.skill_email.lambda_arn
 }

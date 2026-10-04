@@ -87,6 +87,15 @@ locals {
       ]
     }
 
+    # bedrock_agent — lets an agent call InvokeInlineAgent to run a Bedrock
+    # inline agent with dynamically attached action groups (skills).
+    bedrock_agent = {
+      actions = [
+        "bedrock-agent-runtime:InvokeInlineAgent",
+      ]
+      resources = ["*"]
+    }
+
     secrets = {
       actions = [
         "secretsmanager:GetSecretValue",
@@ -352,4 +361,35 @@ resource "aws_iam_role_policy_attachment" "deny_admin" {
 
   role       = aws_iam_role.agent[each.key].name
   policy_arn = aws_iam_policy.deny_admin.arn
+}
+
+# ---------------------------------------------------------------------------
+# Agent-to-skill assignment table
+# Each row links one agent to one skill it has been granted.
+# PK: agent_id  SK: skill_id
+# Extra attributes (e.g. per-agent config) can be stored on each row.
+# This table is the source of truth for which agent can use which skill.
+# Dashboard attach/detach writes here; inline agent invocations read here.
+# ---------------------------------------------------------------------------
+resource "aws_dynamodb_table" "agent_skills" {
+  name         = "${var.name_prefix}-agent-skills"
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "agent_id"
+  range_key    = "skill_id"
+
+  attribute {
+    name = "agent_id"
+    type = "S"
+  }
+
+  attribute {
+    name = "skill_id"
+    type = "S"
+  }
+
+  server_side_encryption {
+    enabled = true
+  }
+
+  tags = merge(var.tags, { TablePurpose = "agent-skill-assignments" })
 }
