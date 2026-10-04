@@ -56,6 +56,13 @@ jobs:
           WS_URL="wss://${API_ID}.execute-api.${{ env.AWS_REGION }}.amazonaws.com/prod"
           echo "ws_url=${WS_URL}" >> $GITHUB_OUTPUT
 
+          # Get REST API URL from API Gateway
+          REST_API_ID=$(aws apigatewayv2 get-apis \
+            --query "Items[?Name=='corelink-agent-api'].ApiId" \
+            --output text)
+          REST_URL="https://${REST_API_ID}.execute-api.${{ env.AWS_REGION }}.amazonaws.com"
+          echo "api_url=${REST_URL}" >> $GITHUB_OUTPUT
+
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
@@ -71,6 +78,7 @@ jobs:
         working-directory: app/dashboard
         env:
           VITE_WS_URL: ${{ steps.tf.outputs.ws_url }}
+          VITE_API_URL: ${{ steps.tf.outputs.api_url }}
         run: npm run build
 
       - name: Deploy to S3

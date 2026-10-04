@@ -136,6 +136,27 @@ module "orchestrator_01" {
 # AI-powered onboarding email agent — Bedrock (Claude Haiku) + SES
 # ---------------------------------------------------------------------------
 # ---------------------------------------------------------------------------
+# Agent API — REST CRUD for agents and skill assignments
+# ---------------------------------------------------------------------------
+module "agent_api" {
+  source = "../../modules/agent-api"
+
+  name_prefix                  = "corelink"
+  agents_table_name            = module.agent_heartbeat.agents_table_name
+  agents_table_arn             = module.agent_heartbeat.agents_table_arn
+  agent_skills_table_name      = module.agent_heartbeat.agent_skills_table_name
+  agent_skills_table_arn       = module.agent_heartbeat.agent_skills_table_arn
+  heartbeat_current_table_name = module.agent_heartbeat.current_table_name
+  heartbeat_current_table_arn  = module.agent_heartbeat.current_table_arn
+
+  tags = {
+    Project     = "corelink"
+    Environment = "dev"
+    ManagedBy   = "terraform"
+  }
+}
+
+# ---------------------------------------------------------------------------
 # Agent Runner
 # One Lambda that heartbeats all dynamic agents and executes tasks on demand.
 # ---------------------------------------------------------------------------
@@ -245,4 +266,9 @@ output "agent_skills_table_name" {
 output "skill_email_lambda_arn" {
   description = "ARN of the email skill action group Lambda."
   value       = module.skill_email.lambda_arn
+}
+
+output "agent_api_url" {
+  description = "REST API base URL. Set as VITE_API_URL in the dashboard build."
+  value       = module.agent_api.api_url
 }
