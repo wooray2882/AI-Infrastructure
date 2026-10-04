@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { Bot } from 'lucide-react'
 import { DonutChart, BarChart, Legend } from '@tremor/react'
 import { ChevronUp, ChevronDown, ChevronsUpDown, CheckCircle2, AlertCircle, Clock3, MinusCircle } from 'lucide-react'
 import { useAgents } from '../layouts/AppLayout'
@@ -154,6 +155,31 @@ export default function OverviewPage() {
     Idle: '#f59e0b',
     Error: '#ef4444',
     Offline: '#94a3b8',
+  }
+
+  if (agentList.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center" style={{ minHeight: 400, gap: 16 }}>
+        <div style={{
+          width: 56, height: 56, borderRadius: '50%',
+          backgroundColor: 'var(--bg-subtle)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }}>
+          <Bot size={26} strokeWidth={1.5} style={{ color: 'var(--text-tertiary)' }} />
+        </div>
+        <div style={{ textAlign: 'center' }}>
+          <p style={{ fontFamily: 'var(--font-family-display)', fontWeight: 'var(--font-weight-medium)', fontSize: 'var(--text-base)', color: 'var(--text-primary)' }}>
+            Waiting for agents
+          </p>
+          <p style={{ fontSize: 'var(--text-sm)', color: 'var(--text-secondary)', marginTop: 6, maxWidth: 340 }}>
+            No heartbeats received yet. Invoke the orchestrator Lambda to send the first real heartbeat.
+          </p>
+          <code style={{ display: 'inline-block', marginTop: 12, fontSize: 'var(--text-xs)', backgroundColor: 'var(--bg-subtle)', border: '1px solid var(--border-base)', borderRadius: 'var(--radius-medium)', padding: '6px 12px', color: 'var(--text-secondary)' }}>
+            aws lambda invoke --function-name corelink-agent-orchestrator-01 /tmp/out.json
+          </code>
+        </div>
+      </div>
+    )
   }
 
   return (

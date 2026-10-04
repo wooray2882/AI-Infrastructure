@@ -2,7 +2,6 @@ import { Outlet } from 'react-router-dom'
 import Sidebar from '../components/Sidebar'
 import TopBar from '../components/TopBar'
 import { useAgentStream } from '../hooks/useAgentStream'
-import { MOCK_AGENTS } from '../data/mockAgents'
 import { useMemo } from 'react'
 import type { AgentRecord } from '../hooks/useAgentStream'
 
@@ -26,13 +25,11 @@ export function useAgents() { return useContext(AgentsContext) }
 export default function AppLayout() {
   const { agents: liveAgents, connectionState } = useAgentStream(WS_URL)
 
-  const hasLiveData = Object.keys(liveAgents).length > 0
-  const isDemoMode = !hasLiveData
+  const isDemoMode = false
 
   const agents: Record<string, AgentRecord> = useMemo(() => {
-    if (hasLiveData) return liveAgents
-    return Object.fromEntries(MOCK_AGENTS.map(a => [a.agent_id, a]))
-  }, [liveAgents, hasLiveData])
+    return liveAgents
+  }, [liveAgents])
 
   return (
     <AgentsContext.Provider value={{ agents, isDemoMode, connectionState }}>
