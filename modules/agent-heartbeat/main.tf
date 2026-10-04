@@ -364,6 +364,28 @@ resource "aws_iam_role_policy_attachment" "deny_admin" {
 }
 
 # ---------------------------------------------------------------------------
+# Agent config table
+# Source of truth for dynamically-created agents (created via dashboard UI).
+# PK: agent_id  — fields: name, department, role, system_prompt, active
+# ---------------------------------------------------------------------------
+resource "aws_dynamodb_table" "agents" {
+  name         = "${var.name_prefix}-agents"
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "agent_id"
+
+  attribute {
+    name = "agent_id"
+    type = "S"
+  }
+
+  server_side_encryption {
+    enabled = true
+  }
+
+  tags = merge(var.tags, { TablePurpose = "agent-config" })
+}
+
+# ---------------------------------------------------------------------------
 # Agent-to-skill assignment table
 # Each row links one agent to one skill it has been granted.
 # PK: agent_id  SK: skill_id

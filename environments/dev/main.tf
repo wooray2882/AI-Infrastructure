@@ -84,27 +84,8 @@ module "agent_heartbeat" {
       principal_services = ["lambda.amazonaws.com"]
     },
 
-    # ── Client Relations: Onboarding ────────────────────────────────────────
-    # Uses Bedrock inline agents + skill-email action group.
-    {
-      id                 = "client-onboarding-01"
-      name               = "Client Onboarding Agent"
-      department         = "client-relations"
-      role               = "specialist"
-      tools              = ["ses", "bedrock", "bedrock_agent", "dynamodb"]
-      principal_services = ["lambda.amazonaws.com"]
-    },
-
-    # ── Client Relations: Support ───────────────────────────────────────────
-    # Uses Bedrock inline agents + skill-email action group.
-    {
-      id                 = "client-support-01"
-      name               = "Client Support Agent"
-      department         = "client-relations"
-      role               = "specialist"
-      tools              = ["ses", "bedrock", "bedrock_agent", "dynamodb"]
-      principal_services = ["lambda.amazonaws.com"]
-    },
+    # Client-relations agents are now dynamic — defined in DynamoDB, not here.
+    # See aws_dynamodb_table_item resources below and module.agent_runner.
   ]
 
   tags = {
@@ -155,6 +136,64 @@ module "orchestrator_01" {
 # AI-powered onboarding email agent — Bedrock (Claude Haiku) + SES
 # ---------------------------------------------------------------------------
 # ---------------------------------------------------------------------------
+# Agent Runner
+# One Lambda that heartbeats all dynamic agents and executes tasks on demand.
+# ---------------------------------------------------------------------------
+module "agent_runner" {
+  source = "../../modules/agent-runner"
+
+  name_prefix                 = "corelink"
+  current_table_name          = module.agent_heartbeat.current_table_name
+  history_table_name          = module.agent_heartbeat.history_table_name
+  agents_table_name           = module.agent_heartbeat.agents_table_name
+  agents_table_arn            = module.agent_heartbeat.agents_table_arn
+  agent_skills_table_name     = module.agent_heartbeat.agent_skills_table_name
+  agent_skills_table_arn      = module.agent_heartbeat.agent_skills_table_arn
+  heartbeat_current_table_arn = module.agent_heartbeat.current_table_arn
+  heartbeat_history_table_arn = module.agent_heartbeat.history_table_arn
+  skill_email_lambda_arn      = module.skill_email.lambda_arn
+
+  tags = {
+    Project     = "corelink"
+    Environment = "dev"
+    ManagedBy   = "terraform"
+  }
+}
+
+# ---------------------------------------------------------------------------
+# Dynamic agents — seeded via DynamoDB records, managed by the dashboard UI
+# ---------------------------------------------------------------------------
+resource "aws_dynamodb_table_item" "agent_client_onboarding" {
+  table_name = module.agent_heartbeat.agents_table_name
+  hash_key   = "agent_id"
+
+  item = jsonencode({
+    agent_id      = { S = "client-onboarding-01" }
+    name          = { S = "Client Onboarding Agent" }
+    department    = { S = "client-relations" }
+    role          = { S = "specialist" }
+    active        = { BOOL = true }
+    system_prompt = { S = "You are a warm, professional client success agent for Corelink, an AI-powered business operations company. Your job is to onboard new clients by sending them a personalized welcome email. Be human, concise, and helpful." }
+    tools         = { S = "bedrock_agent ses dynamodb" }
+  })
+}
+
+resource "aws_dynamodb_table_item" "agent_client_support" {
+  table_name = module.agent_heartbeat.agents_table_name
+  hash_key   = "agent_id"
+
+  item = jsonencode({
+    agent_id      = { S = "client-support-01" }
+    name          = { S = "Client Support Agent" }
+    department    = { S = "client-relations" }
+    role          = { S = "specialist" }
+    active        = { BOOL = true }
+    system_prompt = { S = "You are a professional and empathetic client support agent for Corelink. Your job is to respond to client queries with clear, helpful, and warm support responses. Keep replies under 150 words." }
+    tools         = { S = "bedrock_agent ses dynamodb" }
+  })
+}
+
+# ---------------------------------------------------------------------------
 # Skill: email
 # Bedrock action group Lambda that sends emails via SES.
 # Agents attach this skill at runtime via the agent-skills table.
@@ -172,61 +211,15 @@ module "skill_email" {
   }
 }
 
-module "client_onboarding_01" {
-  source = "../../agents/client-onboarding-01"
-
-  name_prefix            = "corelink"
-  agent_role_arn         = module.agent_heartbeat.agent_role_arns["client-onboarding-01"]
-  agent_role_id          = module.agent_heartbeat.agent_role_ids["client-onboarding-01"]
-  current_table_name     = module.agent_heartbeat.current_table_name
-  history_table_name     = module.agent_heartbeat.history_table_name
-  from_email             = var.from_email
-  agent_skills_table     = module.agent_heartbeat.agent_skills_table_name
-  skill_email_lambda_arn = module.skill_email.lambda_arn
-
-  tags = {
-    Project     = "corelink"
-    Environment = "dev"
-    ManagedBy   = "terraform"
-  }
-}
-
-# ---------------------------------------------------------------------------
-# Agent: client-support-01
-# AI-powered support response agent — Bedrock inline agents + skill-email
-# ---------------------------------------------------------------------------
-module "client_support_01" {
-  source = "../../agents/client-support-01"
-
-  name_prefix            = "corelink"
-  agent_role_arn         = module.agent_heartbeat.agent_role_arns["client-support-01"]
-  agent_role_id          = module.agent_heartbeat.agent_role_ids["client-support-01"]
-  current_table_name     = module.agent_heartbeat.current_table_name
-  history_table_name     = module.agent_heartbeat.history_table_name
-  from_email             = var.from_email
-  agent_skills_table     = module.agent_heartbeat.agent_skills_table_name
-  skill_email_lambda_arn = module.skill_email.lambda_arn
-
-  tags = {
-    Project     = "corelink"
-    Environment = "dev"
-    ManagedBy   = "terraform"
-  }
-}
 
 output "orchestrator_function_name" {
   description = "Invoke this Lambda to fire a real heartbeat: aws lambda invoke --function-name <name> /tmp/out.json"
   value       = module.orchestrator_01.function_name
 }
 
-output "client_onboarding_function_name" {
-  description = "Invoke with a client payload: {client_name, company, to_email}"
-  value       = module.client_onboarding_01.function_name
-}
-
-output "client_support_function_name" {
-  description = "Invoke with a support payload: {client_name, query, to_email}"
-  value       = module.client_support_01.function_name
+output "agent_runner_function_name" {
+  description = "Invoke with {agent_id, task} to run any dynamic agent. Scheduled pings run automatically."
+  value       = module.agent_runner.function_name
 }
 
 output "websocket_url" {
