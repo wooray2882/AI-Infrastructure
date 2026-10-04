@@ -237,12 +237,8 @@ data "aws_iam_policy_document" "agent_assume_role" {
       type        = "Service"
       identifiers = each.value.principal_services
     }
-
-    condition {
-      test     = "StringEquals"
-      variable = "sts:RoleSessionName"
-      values   = [each.key]
-    }
+    # No RoleSessionName condition — Lambda sets its own session name and
+    # cannot be constrained to a specific value by the trust policy.
   }
 }
 
