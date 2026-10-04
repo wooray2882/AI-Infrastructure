@@ -28,6 +28,11 @@ output "agent_role_arns" {
   value       = { for k, r in aws_iam_role.agent : k => r.arn }
 }
 
+output "agent_role_ids" {
+  description = "Map of agent_id => IAM role ID (name). Used to attach additional policies to a role."
+  value       = { for k, r in aws_iam_role.agent : k => r.id }
+}
+
 output "agent_tool_policy_arns" {
   description = "Map of 'agent_id__tool' => IAM policy ARN for every (agent, tool) pair created."
   value       = { for k, p in aws_iam_policy.agent_tool : k => p.arn }

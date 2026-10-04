@@ -107,6 +107,32 @@ module "agent_dashboard" {
   }
 }
 
+# ---------------------------------------------------------------------------
+# Agent: orchestrator-01
+# Minimal proof-of-life Lambda — writes heartbeat + reads agent registry.
+# Uses the IAM role already created by module.agent_heartbeat.
+# ---------------------------------------------------------------------------
+module "orchestrator_01" {
+  source = "../../agents/orchestrator-01"
+
+  name_prefix        = "corelink"
+  agent_role_arn     = module.agent_heartbeat.agent_role_arns["orchestrator-01"]
+  agent_role_id      = module.agent_heartbeat.agent_role_ids["orchestrator-01"]
+  current_table_name = module.agent_heartbeat.current_table_name
+  history_table_name = module.agent_heartbeat.history_table_name
+
+  tags = {
+    Project     = "corelink"
+    Environment = "dev"
+    ManagedBy   = "terraform"
+  }
+}
+
+output "orchestrator_function_name" {
+  description = "Invoke this Lambda to fire a real heartbeat: aws lambda invoke --function-name <name> /tmp/out.json"
+  value       = module.orchestrator_01.function_name
+}
+
 output "websocket_url" {
   description = "Set this as VITE_WS_URL when building the dashboard."
   value       = module.agent_dashboard.websocket_url
