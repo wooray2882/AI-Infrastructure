@@ -49,6 +49,32 @@ resource "aws_cloudwatch_log_group" "orchestrator" {
   tags              = var.tags
 }
 
+# ---------------------------------------------------------------------------
+# EventBridge schedule — fires orchestrator-01 every minute
+# This proves the full pipeline: Lambda → DynamoDB → Stream → WebSocket → dashboard
+# Replace or supplement with a real event source (SQS, API GW) when ready.
+# ---------------------------------------------------------------------------
+resource "aws_cloudwatch_event_rule" "orchestrator_schedule" {
+  name                = "${var.name_prefix}-orchestrator-01-heartbeat"
+  description         = "Fires orchestrator-01 every minute to produce live heartbeat data"
+  schedule_expression = "rate(1 minute)"
+  tags                = var.tags
+}
+
+resource "aws_cloudwatch_event_target" "orchestrator_schedule" {
+  rule      = aws_cloudwatch_event_rule.orchestrator_schedule.name
+  target_id = "orchestrator-01"
+  arn       = aws_lambda_function.orchestrator.arn
+}
+
+resource "aws_lambda_permission" "eventbridge" {
+  statement_id  = "AllowEventBridgeInvoke"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.orchestrator.function_name
+  principal     = "events.amazonaws.com"
+  source_arn    = aws_cloudwatch_event_rule.orchestrator_schedule.arn
+}
+
 # Allow the Lambda role to write CloudWatch logs
 resource "aws_iam_role_policy" "orchestrator_logs" {
   name = "${var.name_prefix}-orchestrator-01-logs"
