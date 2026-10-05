@@ -38,6 +38,26 @@ output "agent_tool_policy_arns" {
   value       = { for k, p in aws_iam_policy.agent_tool : k => p.arn }
 }
 
+output "organizations_table_name" {
+  description = "Name of the organizations table."
+  value       = aws_dynamodb_table.organizations.name
+}
+
+output "organizations_table_arn" {
+  description = "ARN of the organizations table."
+  value       = aws_dynamodb_table.organizations.arn
+}
+
+output "departments_table_name" {
+  description = "Name of the departments table."
+  value       = aws_dynamodb_table.departments.name
+}
+
+output "departments_table_arn" {
+  description = "ARN of the departments table."
+  value       = aws_dynamodb_table.departments.arn
+}
+
 output "agents_table_name" {
   description = "Name of the agent config table (source of truth for dashboard-created agents)."
   value       = aws_dynamodb_table.agents.name

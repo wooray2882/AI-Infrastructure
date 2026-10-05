@@ -27,6 +27,22 @@ variable "heartbeat_current_table_arn" {
   type        = string
 }
 
+variable "organizations_table_name" {
+  type = string
+}
+
+variable "organizations_table_arn" {
+  type = string
+}
+
+variable "departments_table_name" {
+  type = string
+}
+
+variable "departments_table_arn" {
+  type = string
+}
+
 variable "tags" {
   type    = map(string)
   default = {}

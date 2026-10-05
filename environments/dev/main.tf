@@ -148,6 +148,10 @@ module "agent_api" {
   agent_skills_table_arn       = module.agent_heartbeat.agent_skills_table_arn
   heartbeat_current_table_name = module.agent_heartbeat.current_table_name
   heartbeat_current_table_arn  = module.agent_heartbeat.current_table_arn
+  organizations_table_name     = module.agent_heartbeat.organizations_table_name
+  organizations_table_arn      = module.agent_heartbeat.organizations_table_arn
+  departments_table_name       = module.agent_heartbeat.departments_table_name
+  departments_table_arn        = module.agent_heartbeat.departments_table_arn
 
   tags = {
     Project     = "corelink"
@@ -182,6 +186,84 @@ module "agent_runner" {
 }
 
 # ---------------------------------------------------------------------------
+# Default organization — seeded on first apply, managed by the dashboard UI
+# ---------------------------------------------------------------------------
+resource "aws_dynamodb_table_item" "default_org" {
+  table_name = module.agent_heartbeat.organizations_table_name
+  hash_key   = "org_id"
+
+  item = jsonencode({
+    org_id     = { S = "org-corelink-default" }
+    name       = { S = "Corelink" }
+    template   = { S = "default" }
+    created_at = { S = "2026-10-05T00:00:00Z" }
+  })
+}
+
+# ---------------------------------------------------------------------------
+# Default departments — seeded from the standard business template
+# ---------------------------------------------------------------------------
+resource "aws_dynamodb_table_item" "dept_sales" {
+  table_name = module.agent_heartbeat.departments_table_name
+  hash_key   = "dept_id"
+
+  item = jsonencode({
+    dept_id    = { S = "dept-sales" }
+    org_id     = { S = "org-corelink-default" }
+    name       = { S = "Sales" }
+    created_at = { S = "2026-10-05T00:00:00Z" }
+  })
+}
+
+resource "aws_dynamodb_table_item" "dept_client_relations" {
+  table_name = module.agent_heartbeat.departments_table_name
+  hash_key   = "dept_id"
+
+  item = jsonencode({
+    dept_id    = { S = "dept-client-relations" }
+    org_id     = { S = "org-corelink-default" }
+    name       = { S = "Client Relations" }
+    created_at = { S = "2026-10-05T00:00:00Z" }
+  })
+}
+
+resource "aws_dynamodb_table_item" "dept_billing" {
+  table_name = module.agent_heartbeat.departments_table_name
+  hash_key   = "dept_id"
+
+  item = jsonencode({
+    dept_id    = { S = "dept-billing" }
+    org_id     = { S = "org-corelink-default" }
+    name       = { S = "Billing" }
+    created_at = { S = "2026-10-05T00:00:00Z" }
+  })
+}
+
+resource "aws_dynamodb_table_item" "dept_comms" {
+  table_name = module.agent_heartbeat.departments_table_name
+  hash_key   = "dept_id"
+
+  item = jsonencode({
+    dept_id    = { S = "dept-comms" }
+    org_id     = { S = "org-corelink-default" }
+    name       = { S = "Communications" }
+    created_at = { S = "2026-10-05T00:00:00Z" }
+  })
+}
+
+resource "aws_dynamodb_table_item" "dept_tech" {
+  table_name = module.agent_heartbeat.departments_table_name
+  hash_key   = "dept_id"
+
+  item = jsonencode({
+    dept_id    = { S = "dept-tech" }
+    org_id     = { S = "org-corelink-default" }
+    name       = { S = "Tech" }
+    created_at = { S = "2026-10-05T00:00:00Z" }
+  })
+}
+
+# ---------------------------------------------------------------------------
 # Dynamic agents — seeded via DynamoDB records, managed by the dashboard UI
 # ---------------------------------------------------------------------------
 resource "aws_dynamodb_table_item" "agent_client_onboarding" {
@@ -192,6 +274,8 @@ resource "aws_dynamodb_table_item" "agent_client_onboarding" {
     agent_id      = { S = "client-onboarding-01" }
     name          = { S = "Client Onboarding Agent" }
     department    = { S = "client-relations" }
+    dept_id       = { S = "dept-client-relations" }
+    org_id        = { S = "org-corelink-default" }
     role          = { S = "specialist" }
     active        = { BOOL = true }
     system_prompt = { S = "You are a warm, professional client success agent for Corelink, an AI-powered business operations company. Your job is to onboard new clients by sending them a personalized welcome email. Be human, concise, and helpful." }
@@ -207,6 +291,8 @@ resource "aws_dynamodb_table_item" "agent_client_support" {
     agent_id      = { S = "client-support-01" }
     name          = { S = "Client Support Agent" }
     department    = { S = "client-relations" }
+    dept_id       = { S = "dept-client-relations" }
+    org_id        = { S = "org-corelink-default" }
     role          = { S = "specialist" }
     active        = { BOOL = true }
     system_prompt = { S = "You are a professional and empathetic client support agent for Corelink. Your job is to respond to client queries with clear, helpful, and warm support responses. Keep replies under 150 words." }

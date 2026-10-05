@@ -364,9 +364,64 @@ resource "aws_iam_role_policy_attachment" "deny_admin" {
 }
 
 # ---------------------------------------------------------------------------
+# Organizations table
+# Top-level tenant boundary. One org per account in v1.
+# PK: org_id  — fields: name, created_at, template (default | custom)
+# ---------------------------------------------------------------------------
+resource "aws_dynamodb_table" "organizations" {
+  name         = "${var.name_prefix}-organizations"
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "org_id"
+
+  attribute {
+    name = "org_id"
+    type = "S"
+  }
+
+  server_side_encryption {
+    enabled = true
+  }
+
+  tags = merge(var.tags, { TablePurpose = "org-config" })
+}
+
+# ---------------------------------------------------------------------------
+# Departments table
+# Each department belongs to one org. Agents reference dept_id.
+# PK: dept_id  GSI: org_id (to list all departments in an org)
+# ---------------------------------------------------------------------------
+resource "aws_dynamodb_table" "departments" {
+  name         = "${var.name_prefix}-departments"
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "dept_id"
+
+  attribute {
+    name = "dept_id"
+    type = "S"
+  }
+
+  attribute {
+    name = "org_id"
+    type = "S"
+  }
+
+  global_secondary_index {
+    name            = "org_id-index"
+    hash_key        = "org_id"
+    projection_type = "ALL"
+  }
+
+  server_side_encryption {
+    enabled = true
+  }
+
+  tags = merge(var.tags, { TablePurpose = "department-config" })
+}
+
+# ---------------------------------------------------------------------------
 # Agent config table
 # Source of truth for dynamically-created agents (created via dashboard UI).
-# PK: agent_id  — fields: name, department, role, system_prompt, active
+# PK: agent_id  — fields: name, dept_id, org_id, role, system_prompt, active
 # ---------------------------------------------------------------------------
 resource "aws_dynamodb_table" "agents" {
   name         = "${var.name_prefix}-agents"

@@ -66,6 +66,27 @@ resource "aws_iam_role_policy" "api" {
         Action   = ["dynamodb:DeleteItem"]
         Resource = [var.heartbeat_current_table_arn]
       },
+      {
+        Sid    = "OrgsTable"
+        Effect = "Allow"
+        Action = [
+          "dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:DeleteItem",
+          "dynamodb:Scan", "dynamodb:Query",
+        ]
+        Resource = [var.organizations_table_arn]
+      },
+      {
+        Sid    = "DeptsTable"
+        Effect = "Allow"
+        Action = [
+          "dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:DeleteItem",
+          "dynamodb:Scan", "dynamodb:Query",
+        ]
+        Resource = [
+          var.departments_table_arn,
+          "${var.departments_table_arn}/index/*",
+        ]
+      },
     ]
   })
 }
@@ -87,6 +108,8 @@ resource "aws_lambda_function" "api" {
       AGENTS_TABLE       = var.agents_table_name
       AGENT_SKILLS_TABLE = var.agent_skills_table_name
       HEARTBEAT_TABLE    = var.heartbeat_current_table_name
+      ORGS_TABLE         = var.organizations_table_name
+      DEPTS_TABLE        = var.departments_table_name
     }
   }
 
