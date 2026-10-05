@@ -67,6 +67,7 @@ def create_agent(body: dict) -> dict:
         "name":          body["name"],
         "department":    body["department"],
         "role":          body["role"],
+        "model_id":      body.get("model_id", "amazon.nova-micro-v1:0"),
         "system_prompt": body.get("system_prompt", ""),
         "tools":         body.get("tools", "bedrock_agent ses dynamodb"),
         "active":        True,

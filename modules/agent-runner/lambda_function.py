@@ -138,8 +138,9 @@ def run_inline_agent(agent: dict, task: str, action_groups: list[dict]) -> str:
         f"You are {agent.get('name', 'an AI agent')} working for Corelink. "
         f"Complete the task using the available tools.",
     )
+    model_id = agent.get("model_id") or MODEL_ID
     kwargs = {
-        "foundationModel": MODEL_ID,
+        "foundationModel": model_id,
         "instruction":     system_prompt,
         "sessionId":       str(uuid.uuid4()),
         "inputText":       task,

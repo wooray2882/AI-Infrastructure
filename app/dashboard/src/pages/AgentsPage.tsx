@@ -26,6 +26,13 @@ const TOOL_DESCRIPTIONS: Record<string, string> = {
 const DEPARTMENTS = ['client-relations', 'sales', 'tech', 'comms', 'core', 'ops']
 const ROLES       = ['specialist', 'manager', 'orchestrator', 'analyst', 'comms', 'database']
 
+const AVAILABLE_MODELS = [
+  { id: 'amazon.nova-micro-v1:0',  label: 'Nova Micro',  description: 'Fastest · lowest cost · best for simple tasks' },
+  { id: 'amazon.nova-lite-v1:0',   label: 'Nova Lite',   description: 'Balanced speed and capability' },
+  { id: 'amazon.nova-pro-v1:0',    label: 'Nova Pro',    description: 'Most capable · best for planning and reasoning' },
+]
+const DEFAULT_MODEL = 'amazon.nova-micro-v1:0'
+
 function timeAgo(iso: string) {
   const diff = Math.floor((Date.now() - new Date(iso).getTime()) / 1000)
   if (diff < 60) return `${diff}s ago`
@@ -45,6 +52,7 @@ function NewAgentForm({ onClose, onCreate }: NewAgentFormProps) {
   const [name, setName]               = useState('')
   const [department, setDepartment]   = useState('client-relations')
   const [role, setRole]               = useState('specialist')
+  const [modelId, setModelId]         = useState(DEFAULT_MODEL)
   const [systemPrompt, setSystemPrompt] = useState('')
   const [saving, setSaving]           = useState(false)
   const [error, setError]             = useState('')
@@ -57,7 +65,7 @@ function NewAgentForm({ onClose, onCreate }: NewAgentFormProps) {
       const res = await fetch(`${API}/agents`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: name.trim(), department, role, system_prompt: systemPrompt }),
+        body: JSON.stringify({ name: name.trim(), department, role, model_id: modelId, system_prompt: systemPrompt }),
       })
       if (!res.ok) {
         const d = await res.json()
@@ -132,6 +140,14 @@ function NewAgentForm({ onClose, onCreate }: NewAgentFormProps) {
         <FormField label="Role">
           <select value={role} onChange={e => setRole(e.target.value)} style={inputStyle}>
             {ROLES.map(r => <option key={r} value={r}>{r}</option>)}
+          </select>
+        </FormField>
+
+        <FormField label="Model" hint={AVAILABLE_MODELS.find(m => m.id === modelId)?.description ?? ''}>
+          <select value={modelId} onChange={e => setModelId(e.target.value)} style={inputStyle}>
+            {AVAILABLE_MODELS.map(m => (
+              <option key={m.id} value={m.id}>{m.label}</option>
+            ))}
           </select>
         </FormField>
 
@@ -274,6 +290,12 @@ function AgentDetail({ agent, onClose, onDeleted }: AgentDetailProps) {
         <Section label="Identity">
           <Row label="Department" value={agent.department} />
           <Row label="Role"       value={agent.role} />
+          {agent.model_id && (
+            <Row
+              label="Model"
+              value={AVAILABLE_MODELS.find(m => m.id === agent.model_id)?.label ?? agent.model_id}
+            />
+          )}
         </Section>
 
         {/* Tools */}

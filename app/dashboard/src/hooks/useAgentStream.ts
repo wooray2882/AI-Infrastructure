@@ -5,6 +5,7 @@ export interface AgentRecord {
   agent_name: string
   department: string
   role: string
+  model_id?: string
   status: 'online' | 'idle' | 'error' | 'offline'
   tools: string
   last_heartbeat: string
