@@ -165,7 +165,7 @@ export default function OrchestratePage() {
     } finally {
       setBusy(false)
     }
-  }, [input, busy, selectedDept])
+  }, [input, busy, selectedAgent])
 
   return (
     <div style={{
