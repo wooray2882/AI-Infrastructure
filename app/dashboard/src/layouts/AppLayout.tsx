@@ -1,6 +1,7 @@
 import { Outlet } from 'react-router-dom'
 import Sidebar from '../components/Sidebar'
 import TopBar from '../components/TopBar'
+import OrchestratorChat from '../components/OrchestratorChat'
 import { useAgentStream } from '../hooks/useAgentStream'
 import { useMemo } from 'react'
 import type { AgentRecord } from '../hooks/useAgentStream'
@@ -41,6 +42,7 @@ export default function AppLayout() {
             <Outlet />
           </main>
         </div>
+        <OrchestratorChat />
       </div>
     </AgentsContext.Provider>
   )

@@ -3,7 +3,6 @@ import AppLayout from './layouts/AppLayout'
 import OverviewPage from './pages/OverviewPage'
 import AgentsPage from './pages/AgentsPage'
 import DepartmentsPage from './pages/DepartmentsPage'
-import OrchestratePage from './pages/OrchestratePage'
 import IntegrationsPage from './pages/IntegrationsPage'
 import PlaceholderPage from './pages/PlaceholderPage'
 
@@ -15,7 +14,7 @@ export default function App() {
         <Route path="/dashboard" element={<OverviewPage />} />
         <Route path="/agents" element={<AgentsPage />} />
         <Route path="/departments" element={<DepartmentsPage />} />
-        <Route path="/orchestrate" element={<OrchestratePage />} />
+        <Route path="/orchestrate" element={<Navigate to="/dashboard" replace />} />
         <Route path="/integrations" element={<IntegrationsPage />} />
         <Route path="/logs" element={<PlaceholderPage title="Activity Log" description="Heartbeat history — coming soon" />} />
         <Route path="/settings" element={<PlaceholderPage title="Settings" description="Platform settings — coming soon" />} />
