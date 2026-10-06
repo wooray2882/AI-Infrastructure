@@ -1,5 +1,5 @@
 """
-agent-api — REST API for agent CRUD, skill management, orgs, and departments
+agent-api — REST API for agent CRUD, skill management, orgs, departments, and orchestration
 
 Routes (HTTP API Gateway v2):
   GET    /organizations                                list organizations
@@ -14,13 +14,15 @@ Routes (HTTP API Gateway v2):
   GET    /agents/{agent_id}/skills                     list skills for agent
   PUT    /agents/{agent_id}/skills/{skill_id}          attach skill
   DELETE /agents/{agent_id}/skills/{skill_id}          detach skill
+  POST   /orchestrate                                  dispatch a task to the best-fit agent
 
 Environment variables:
-  AGENTS_TABLE        — corelink-agents
-  AGENT_SKILLS_TABLE  — corelink-agent-skills
-  HEARTBEAT_TABLE     — corelink-agent-heartbeats
-  ORGS_TABLE          — corelink-organizations
-  DEPTS_TABLE         — corelink-departments
+  AGENTS_TABLE            — corelink-agents
+  AGENT_SKILLS_TABLE      — corelink-agent-skills
+  HEARTBEAT_TABLE         — corelink-agent-heartbeats
+  ORGS_TABLE              — corelink-organizations
+  DEPTS_TABLE             — corelink-departments
+  AGENT_RUNNER_FUNCTION   — corelink-agent-runner
 """
 
 import json
@@ -31,13 +33,15 @@ from datetime import datetime, timezone
 import boto3
 from boto3.dynamodb.conditions import Key
 
-AGENTS_TABLE       = os.environ["AGENTS_TABLE"]
-AGENT_SKILLS_TABLE = os.environ["AGENT_SKILLS_TABLE"]
-HEARTBEAT_TABLE    = os.environ["HEARTBEAT_TABLE"]
-ORGS_TABLE         = os.environ["ORGS_TABLE"]
-DEPTS_TABLE        = os.environ["DEPTS_TABLE"]
+AGENTS_TABLE           = os.environ["AGENTS_TABLE"]
+AGENT_SKILLS_TABLE     = os.environ["AGENT_SKILLS_TABLE"]
+HEARTBEAT_TABLE        = os.environ["HEARTBEAT_TABLE"]
+ORGS_TABLE             = os.environ["ORGS_TABLE"]
+DEPTS_TABLE            = os.environ["DEPTS_TABLE"]
+AGENT_RUNNER_FUNCTION  = os.environ.get("AGENT_RUNNER_FUNCTION", "")
 
 dynamodb      = boto3.resource("dynamodb")
+lambda_client = boto3.client("lambda")
 agents_table  = dynamodb.Table(AGENTS_TABLE)
 skills_table  = dynamodb.Table(AGENT_SKILLS_TABLE)
 hb_table      = dynamodb.Table(HEARTBEAT_TABLE)
@@ -114,6 +118,73 @@ def list_agents_by_dept(dept_id: str) -> dict:
     )
     items = sorted(result.get("Items", []), key=lambda a: a.get("name", ""))
     return resp(200, items)
+
+
+def orchestrate(body: dict) -> dict:
+    """
+    Pick the best-fit agent for a task and invoke it via agent-runner.
+
+    Routing priority:
+      1. body.agent_id — caller pinned a specific agent
+      2. body.dept_id  — pick any active specialist in that department
+      3. default       — find the orchestrator agent and let it delegate
+    """
+    task = (body.get("task") or "").strip()
+    if not task:
+        return resp(400, {"error": "Missing required field: task"})
+
+    agent_id = body.get("agent_id")
+
+    if not agent_id and body.get("dept_id"):
+        # Pick the first active specialist in the named department
+        result = agents_table.scan(
+            FilterExpression="dept_id = :d AND active = :t",
+            ExpressionAttributeValues={":d": body["dept_id"], ":t": True},
+        )
+        items = result.get("Items", [])
+        specialists = [a for a in items if a.get("role") != "orchestrator"]
+        if specialists:
+            agent_id = specialists[0]["agent_id"]
+
+    if not agent_id:
+        # Fall back to the orchestrator agent
+        result = agents_table.scan(
+            FilterExpression="#r = :r AND active = :t",
+            ExpressionAttributeNames={"#r": "role"},
+            ExpressionAttributeValues={":r": "orchestrator", ":t": True},
+        )
+        items = result.get("Items", [])
+        if items:
+            agent_id = items[0]["agent_id"]
+
+    if not agent_id:
+        return resp(404, {"error": "No suitable agent found. Create an agent first."})
+
+    if not AGENT_RUNNER_FUNCTION:
+        return resp(503, {"error": "AGENT_RUNNER_FUNCTION not configured."})
+
+    payload = {"agent_id": agent_id, "task": task}
+    invoke_resp = lambda_client.invoke(
+        FunctionName=AGENT_RUNNER_FUNCTION,
+        InvocationType="RequestResponse",
+        Payload=json.dumps(payload).encode(),
+    )
+    raw = invoke_resp["Payload"].read()
+    runner_result = json.loads(raw)
+
+    # agent-runner returns {"statusCode": 200, "body": "{...}"}
+    inner = runner_result.get("body", "{}")
+    try:
+        data = json.loads(inner)
+    except Exception:
+        data = {"result": inner}
+
+    return resp(200, {
+        "agent_id": agent_id,
+        "task":     task,
+        "result":   data.get("result", ""),
+        "skills":   data.get("skills", []),
+    })
 
 
 def list_agents() -> dict:
@@ -230,6 +301,10 @@ def lambda_handler(event, _context):
     # GET /departments/{dept_id}/agents
     if method == "GET" and len(parts) == 3 and parts[0] == "departments" and parts[2] == "agents":
         return list_agents_by_dept(parts[1])
+
+    # POST /orchestrate
+    if method == "POST" and parts == ["orchestrate"]:
+        return orchestrate(body)
 
     # GET /agents
     if method == "GET" and parts == ["agents"]:

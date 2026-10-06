@@ -1,12 +1,13 @@
 import { NavLink } from 'react-router-dom'
-import { LayoutDashboard, Bot, Building2, ScrollText, Settings } from 'lucide-react'
+import { LayoutDashboard, Bot, Building2, Zap, ScrollText, Settings } from 'lucide-react'
 
 const NAV = [
-  { to: '/dashboard', icon: LayoutDashboard, label: 'Overview' },
-  { to: '/agents',    icon: Bot,             label: 'Agents' },
-  { to: '/departments', icon: Building2,     label: 'Departments' },
-  { to: '/logs',      icon: ScrollText,      label: 'Activity' },
-  { to: '/settings',  icon: Settings,        label: 'Settings' },
+  { to: '/dashboard',   icon: LayoutDashboard, label: 'Overview' },
+  { to: '/agents',      icon: Bot,             label: 'Agents' },
+  { to: '/departments', icon: Building2,       label: 'Departments' },
+  { to: '/orchestrate', icon: Zap,             label: 'Orchestrate' },
+  { to: '/logs',        icon: ScrollText,      label: 'Activity' },
+  { to: '/settings',    icon: Settings,        label: 'Settings' },
 ]
 
 export default function Sidebar() {

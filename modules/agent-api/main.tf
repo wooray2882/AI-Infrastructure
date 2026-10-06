@@ -67,6 +67,12 @@ resource "aws_iam_role_policy" "api" {
         Resource = [var.heartbeat_current_table_arn]
       },
       {
+        Sid    = "InvokeAgentRunner"
+        Effect = "Allow"
+        Action = ["lambda:InvokeFunction"]
+        Resource = [var.agent_runner_function_arn]
+      },
+      {
         Sid    = "OrgsTable"
         Effect = "Allow"
         Action = [
@@ -108,8 +114,9 @@ resource "aws_lambda_function" "api" {
       AGENTS_TABLE       = var.agents_table_name
       AGENT_SKILLS_TABLE = var.agent_skills_table_name
       HEARTBEAT_TABLE    = var.heartbeat_current_table_name
-      ORGS_TABLE         = var.organizations_table_name
-      DEPTS_TABLE        = var.departments_table_name
+      ORGS_TABLE             = var.organizations_table_name
+      DEPTS_TABLE            = var.departments_table_name
+      AGENT_RUNNER_FUNCTION  = var.agent_runner_function_name
     }
   }
 

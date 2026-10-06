@@ -152,6 +152,8 @@ module "agent_api" {
   organizations_table_arn      = module.agent_heartbeat.organizations_table_arn
   departments_table_name       = module.agent_heartbeat.departments_table_name
   departments_table_arn        = module.agent_heartbeat.departments_table_arn
+  agent_runner_function_name   = module.agent_runner.function_name
+  agent_runner_function_arn    = module.agent_runner.function_arn
 
   tags = {
     Project     = "corelink"

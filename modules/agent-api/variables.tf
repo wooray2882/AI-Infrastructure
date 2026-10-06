@@ -43,6 +43,14 @@ variable "departments_table_arn" {
   type = string
 }
 
+variable "agent_runner_function_name" {
+  type = string
+}
+
+variable "agent_runner_function_arn" {
+  type = string
+}
+
 variable "tags" {
   type    = map(string)
   default = {}
