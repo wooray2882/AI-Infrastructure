@@ -120,14 +120,32 @@ def list_agents_by_dept(dept_id: str) -> dict:
     return resp(200, items)
 
 
+def _score_agent(agent: dict, task_lower: str) -> int:
+    """Score how well an agent matches a task based on keyword overlap."""
+    score = 0
+    fields = " ".join([
+        agent.get("name", ""),
+        agent.get("role", ""),
+        agent.get("department", ""),
+        agent.get("dept_id", ""),
+        (agent.get("system_prompt", ""))[:300],
+    ]).lower()
+    for word in task_lower.split():
+        if len(word) > 3 and word in fields:
+            score += 1
+    # Boost specialists over orchestrators for direct tasks
+    if agent.get("role") == "orchestrator":
+        score -= 1
+    return score
+
+
 def orchestrate(body: dict) -> dict:
     """
     Pick the best-fit agent for a task and invoke it via agent-runner.
 
     Routing priority:
       1. body.agent_id — caller pinned a specific agent
-      2. body.dept_id  — pick any active specialist in that department
-      3. default       — find the orchestrator agent and let it delegate
+      2. auto-route    — score all active agents against the task, pick best fit
     """
     task = (body.get("task") or "").strip()
     if not task:
@@ -135,37 +153,19 @@ def orchestrate(body: dict) -> dict:
 
     agent_id = body.get("agent_id")
 
-    if not agent_id and body.get("dept_id"):
-        # Pick the first active specialist in the named department
-        result = agents_table.scan(
-            FilterExpression="dept_id = :d AND active = :t",
-            ExpressionAttributeValues={":d": body["dept_id"], ":t": True},
-        )
-        items = result.get("Items", [])
-        specialists = [a for a in items if a.get("role") != "orchestrator"]
-        if specialists:
-            agent_id = specialists[0]["agent_id"]
-
     if not agent_id:
-        # Try orchestrator first
-        result = agents_table.scan(
-            FilterExpression="#r = :r AND active = :t",
-            ExpressionAttributeNames={"#r": "role"},
-            ExpressionAttributeValues={":r": "orchestrator", ":t": True},
-        )
-        items = result.get("Items", [])
-        if items:
-            agent_id = items[0]["agent_id"]
-
-    if not agent_id:
-        # No orchestrator — fall back to any active agent
+        # Score every active agent against the task and pick the best match
         result = agents_table.scan(
             FilterExpression="active = :t",
             ExpressionAttributeValues={":t": True},
         )
-        items = result.get("Items", [])
-        if items:
-            agent_id = items[0]["agent_id"]
+        candidates = result.get("Items", [])
+        if not candidates:
+            return resp(404, {"error": "No agents found. Go to the Agents page and create one first, then try again."})
+
+        task_lower = task.lower()
+        scored = sorted(candidates, key=lambda a: _score_agent(a, task_lower), reverse=True)
+        agent_id = scored[0]["agent_id"]
 
     if not agent_id:
         return resp(404, {"error": "No agents found. Go to the Agents page and create one first, then try again."})

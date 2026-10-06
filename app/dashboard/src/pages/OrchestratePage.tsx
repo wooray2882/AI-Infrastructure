@@ -1,12 +1,12 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { Send, Bot, User, Loader2, ChevronDown } from 'lucide-react'
 
-const API    = import.meta.env.VITE_API_URL ?? ''
-const ORG_ID = 'org-corelink-default'
+const API = import.meta.env.VITE_API_URL ?? ''
 
-interface Department {
-  dept_id: string
-  name:    string
+interface Agent {
+  agent_id: string
+  name:     string
+  role:     string
 }
 
 interface Message {
@@ -100,8 +100,8 @@ function UserBubble({ msg }: { msg: Message }) {
 }
 
 export default function OrchestratePage() {
-  const [departments, setDepartments] = useState<Department[]>([])
-  const [selectedDept, setSelectedDept] = useState('')
+  const [agents, setAgents]         = useState<Agent[]>([])
+  const [selectedAgent, setSelectedAgent] = useState('')
   const [input, setInput]   = useState('')
   const [messages, setMessages] = useState<Message[]>([{
     id:   'welcome',
@@ -112,9 +112,9 @@ export default function OrchestratePage() {
   const bottomRef           = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    fetch(`${API}/organizations/${ORG_ID}/departments`)
+    fetch(`${API}/agents`)
       .then(r => r.ok ? r.json() : [])
-      .then(setDepartments)
+      .then((all: Agent[]) => setAgents(all.filter(a => a.role !== 'orchestrator')))
       .catch(() => {})
   }, [])
 
@@ -134,7 +134,7 @@ export default function OrchestratePage() {
 
     try {
       const body: Record<string, string> = { task: text }
-      if (selectedDept) body.dept_id = selectedDept
+      if (selectedAgent) body.agent_id = selectedAgent
 
       const res  = await fetch(`${API}/orchestrate`, {
         method:  'POST',
@@ -179,35 +179,35 @@ export default function OrchestratePage() {
             Orchestrate
           </h1>
           <p style={{ margin: '4px 0 0', fontSize: 13, color: 'var(--text-muted)' }}>
-            Send a task to an agent — the orchestrator will route it to the right department
+            Send a task — the orchestrator picks the best agent, or choose one directly from the dropdown
           </p>
         </div>
 
-        {/* Department selector */}
-        {departments.length > 0 && (
-          <div style={{ position: 'relative' }}>
-            <select
-              value={selectedDept}
-              onChange={e => setSelectedDept(e.target.value)}
-              style={{
-                appearance: 'none',
-                padding: '8px 36px 8px 14px',
-                borderRadius: 'var(--radius-small)',
-                border: 'var(--border-width-default) solid var(--border-base)',
-                backgroundColor: 'var(--bg-surface)',
-                color: 'var(--text-primary)',
-                fontSize: 13, cursor: 'pointer',
-                fontFamily: 'var(--font-family-body)',
-              }}
-            >
-              <option value="">Auto-route (Orchestrator decides)</option>
-              {departments.map(d => (
-                <option key={d.dept_id} value={d.dept_id}>{d.name}</option>
-              ))}
-            </select>
-            <ChevronDown size={14} style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: 'var(--text-muted)' }} />
-          </div>
-        )}
+        {/* Agent selector */}
+        <div style={{ position: 'relative' }}>
+          <select
+            value={selectedAgent}
+            onChange={e => setSelectedAgent(e.target.value)}
+            style={{
+              appearance: 'none',
+              padding: '8px 36px 8px 14px',
+              borderRadius: 'var(--radius-small)',
+              border: 'var(--border-width-default) solid var(--border-base)',
+              backgroundColor: 'var(--bg-surface)',
+              color: 'var(--text-primary)',
+              fontSize: 13, cursor: 'pointer',
+              fontFamily: 'var(--font-family-body)',
+            }}
+          >
+            <option value="">Auto-route (best match for task)</option>
+            {agents.map(a => (
+              <option key={a.agent_id} value={a.agent_id}>
+                {a.name} · {a.role}
+              </option>
+            ))}
+          </select>
+          <ChevronDown size={14} style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: 'var(--text-muted)' }} />
+        </div>
       </div>
 
       {/* Chat thread */}
