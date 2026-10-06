@@ -147,7 +147,7 @@ def orchestrate(body: dict) -> dict:
             agent_id = specialists[0]["agent_id"]
 
     if not agent_id:
-        # Fall back to the orchestrator agent
+        # Try orchestrator first
         result = agents_table.scan(
             FilterExpression="#r = :r AND active = :t",
             ExpressionAttributeNames={"#r": "role"},
@@ -158,7 +158,17 @@ def orchestrate(body: dict) -> dict:
             agent_id = items[0]["agent_id"]
 
     if not agent_id:
-        return resp(404, {"error": "No suitable agent found. Create an agent first."})
+        # No orchestrator — fall back to any active agent
+        result = agents_table.scan(
+            FilterExpression="active = :t",
+            ExpressionAttributeValues={":t": True},
+        )
+        items = result.get("Items", [])
+        if items:
+            agent_id = items[0]["agent_id"]
+
+    if not agent_id:
+        return resp(404, {"error": "No agents found. Go to the Agents page and create one first, then try again."})
 
     if not AGENT_RUNNER_FUNCTION:
         return resp(503, {"error": "AGENT_RUNNER_FUNCTION not configured."})
